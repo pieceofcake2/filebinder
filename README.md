@@ -1,5 +1,7 @@
 # Filebinder Plugin
 
+![Filebinder](docs/img/filebinder.png)
+
 [![GitHub License](https://img.shields.io/github/license/pieceofcake2/filebinder?label=License)](LICENSE)
 [![Packagist Version](https://img.shields.io/packagist/v/pieceofcake2/filebinder?label=Packagist)](https://packagist.org/packages/pieceofcake2/filebinder)
 ![PHP](https://img.shields.io/packagist/dependency-v/pieceofcake2/filebinder/php?logo=php&logoColor=%23FFFFFF&label=PHP&labelColor=%23777BB4&color=%23FFFFFF)

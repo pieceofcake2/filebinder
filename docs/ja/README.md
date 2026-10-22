@@ -1,5 +1,7 @@
 # Filebinder プラグインドキュメント
 
+![Filebinder](../img/filebinder.png)
+
 Filebinder は、CakePHP 2 のモデルのレコードにファイルを添付するプラグインです。モデルの
 `$bindFields` にファイルのフィールドを書くと、`Filebinder.Bindable` ビヘイビアがアップロードされた
 ファイルを保存します。ファイルの情報 (名前、コンテンツタイプ、サイズ) は添付ファイルのテーブルに、

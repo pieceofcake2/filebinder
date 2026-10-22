@@ -1,5 +1,7 @@
 # Filebinder Plugin Documentation
 
+![Filebinder](img/filebinder.png)
+
 Filebinder attaches files to the records of CakePHP 2 models. You list the file fields of a model
 in `$bindFields`, and the `Filebinder.Bindable` behavior saves the uploaded files: their data
 (name, content type, size) in an attachment table, and the files in a local directory, in the
