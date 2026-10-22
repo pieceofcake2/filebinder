@@ -430,6 +430,68 @@ class BindableBehaviorTest extends CakeTestCase
     }
 
     /**
+     * checkExtension() accepts an extension or a list of extensions.
+     */
+    public function testCheckExtension(): void
+    {
+        $data = ['logo' => ['tmp_bind_path' => '/tmp/ring_logo.PNG']];
+
+        $this->assertTrue($this->FilebinderPost->checkExtension($data, ['jpg', 'png']));
+        $this->assertTrue($this->FilebinderPost->checkExtension($data, 'png'));
+        $this->assertFalse($this->FilebinderPost->checkExtension($data, 'gif'));
+        $this->assertFalse($this->FilebinderPost->checkExtension(['logo' => ['tmp_bind_path' => '/tmp/ring_logo.php']], ['allowEmpty' => true, 'rule' => ['checkExtension']]));
+    }
+
+    /**
+     * checkContentType() accepts a MIME type or a list of MIME types.
+     */
+    public function testCheckContentType(): void
+    {
+        $data = ['logo' => ['file_content_type' => 'image/png']];
+
+        $this->assertTrue($this->FilebinderPost->checkContentType($data, ['image/jpeg', 'image/png']));
+        $this->assertTrue($this->FilebinderPost->checkContentType($data, 'image/png'));
+        $this->assertFalse($this->FilebinderPost->checkContentType($data, 'image/gif'));
+    }
+
+    /**
+     * The rules with a string parameter in $validate.
+     */
+    public function testValidateWithStringParameters(): void
+    {
+        $this->FilebinderPost->validate = [
+            'logo' => [
+                'extension' => ['rule' => ['checkExtension', 'png']],
+                'contentType' => ['rule' => ['checkContentType', 'image/png']],
+                'maxFileSize' => ['rule' => ['checkMaxFileSize', '1MB']],
+            ],
+        ];
+        $logo = [
+            'model' => 'FilebinderPost',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+            'file_content_type' => 'image/png',
+            'file_size' => 1395,
+            'tmp_bind_path' => $this->tmpPath,
+        ];
+
+        $this->FilebinderPost->set(['FilebinderPost' => ['title' => 'Title', 'logo' => $logo]]);
+        $this->assertTrue($this->FilebinderPost->validates());
+
+        $logo['file_name'] = 'logo.gif';
+        $logo['file_content_type'] = 'image/gif';
+        $logo['tmp_bind_path'] = $this->filePath . 'bindup.gif';
+        $this->FilebinderPost->set(['FilebinderPost' => ['title' => 'Title', 'logo' => $logo]]);
+        $this->assertFalse($this->FilebinderPost->validates());
+        $this->assertSame(['extension'], $this->FilebinderPost->validationErrors['logo']);
+
+        $logo['tmp_bind_path'] = $this->tmpPath;
+        $this->FilebinderPost->set(['FilebinderPost' => ['title' => 'Title', 'logo' => $logo]]);
+        $this->assertFalse($this->FilebinderPost->validates());
+        $this->assertSame(['contentType'], $this->FilebinderPost->validationErrors['logo']);
+    }
+
+    /**
      * calcFileSizeUnit() converts the units K, M, G and T, in upper or lower case, with or without B.
      */
     public function testCalcFileSizeUnit(): void

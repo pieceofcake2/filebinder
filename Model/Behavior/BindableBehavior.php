@@ -638,7 +638,7 @@ class BindableBehavior extends ModelBehavior
         if (!is_array($file)) {
             return false;
         }
-        if (in_array('allowEmpty', $extension)) {
+        if (is_array($extension) && in_array('allowEmpty', $extension)) {
             $extension = ['jpg', 'jpeg', 'gif', 'png']; // set default
         }
         if (empty($file['tmp_bind_path']) && empty($file['file_path'])) {
@@ -669,7 +669,7 @@ class BindableBehavior extends ModelBehavior
         if (!is_array($file)) {
             return false;
         }
-        if (in_array('allowEmpty', $mimeType)) {
+        if (is_array($mimeType) && in_array('allowEmpty', $mimeType)) {
             return true;
         }
 
