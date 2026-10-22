@@ -584,13 +584,14 @@ class BindableBehaviorTest extends CakeTestCase
         ]);
         $this->assertEquals(1, $result['FilebinderPost']['id']);
         $this->assertSame('Title', $result['FilebinderPost']['title']);
-        if (array_key_exists('logo', $result['FilebinderPost'])) {
-            $this->markTestIncomplete(
-                'Known bug: a field list without a bound field adds all the bound fields, because bindFile() '
-                . 'falls back to all of them when beforeFind() removed every field from BindableBehavior::$bindFields.',
-            );
-        }
+        $this->assertArrayNotHasKey('logo', $result['FilebinderPost']);
         $this->assertArrayNotHasKey('image', $result['FilebinderPost']);
+
+        // The field list of a find without results does not change the next find
+        $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => 999], 'fields' => ['id', 'title']]);
+        $result = $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => 1]]);
+        $this->assertSame('logo.png', $result['FilebinderPost']['logo']['file_name']);
+        $this->assertArrayHasKey('image', $result['FilebinderPost']);
     }
 
     /**

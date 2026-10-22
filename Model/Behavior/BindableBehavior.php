@@ -905,9 +905,10 @@ class BindableBehavior extends ModelBehavior
     {
         $modelName = $model->alias;
         // The fields of the beforeFind() of this model, used once; without one (e.g. an associated model), all
-        $findFields = $this->bindFields[$modelName] ?? [];
+        $findFields = $this->bindFields[$modelName] ?? null;
         unset($this->bindFields[$modelName]);
-        if (empty($model->bindFields) || empty($data)) {
+        if (empty($model->bindFields) || empty($data) || $findFields === []) {
+            // No bound field, or a field list without a bound field
             return $data;
         }
 
@@ -929,7 +930,7 @@ class BindableBehavior extends ModelBehavior
             $tmpData = $data;
         }
 
-        $bindFields = empty($findFields) ? Set::combine($model->bindFields, '/field', '/') : $findFields;
+        $bindFields = $findFields ?? Set::combine($model->bindFields, '/field', '/');
         $model_ids = Set::extract('/' . $modelName . '/' . $this->runtime[$model->alias]['primaryKey'], $tmpData);
 
         if (!$model_ids) {

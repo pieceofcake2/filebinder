@@ -98,6 +98,7 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   the helper now uses the key of the behavior (`s3Key()`)
 - The results of an associated model, passed to the behavior by its `afterFind()`, got the bound
   fields of the primary model instead of its own
+- `find()` with a field list without a bound field added all the bound fields
 - The loader action emitted warnings before the 404 response for a record that does not exist or
   has no file, a deprecation without a `User-Agent` header, and a notice without an output buffer
 - The plugin no longer loads its own `vendor/autoload.php`
