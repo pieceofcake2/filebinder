@@ -25,6 +25,13 @@ class BindableBehavior extends ModelBehavior
     public $runtime = [];
 
     /**
+     * Bound fields of the current find(), set by beforeFind() and used by afterFind()
+     *
+     * @var array
+     */
+    public $bindFields = [];
+
+    /**
      * Storage: the database (the `file_object` field of the attachment model)
      *
      * @var string
@@ -910,6 +917,7 @@ class BindableBehavior extends ModelBehavior
         }
 
         // Detect $data array format
+        $tmpData = [];
         if (isset($data[$model->alias][$model->primaryKey])) {
             $tmpData = [$data];
         } elseif (isset($data[$model->alias][0][$model->primaryKey])) {

@@ -18,3 +18,9 @@ parameters:
     scanDirectories:
         - vendor/pieceofcake2/async-aws/Controller
         - vendor/pieceofcake2/async-aws/Lib
+    ignoreErrors:
+        # The models declare the bound fields in $bindFields, and the behavior keeps the data to save in
+        # $bindedData of the model between beforeSave() and afterSave(). Model does not declare them.
+        -
+            message: '#^Access to an undefined property Model::\$(bindFields|bindedData)\.$#'
+            identifier: property.notFound

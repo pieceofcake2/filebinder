@@ -19,6 +19,13 @@ class RingComponent extends Component
     public $components = ['Session'];
 
     /**
+     * Controller
+     *
+     * @var Controller
+     */
+    public $controller;
+
+    /**
      * Models to bind down before rendering
      *
      * @var array<string>
@@ -58,7 +65,7 @@ class RingComponent extends Component
             if (Configure::read('Filebinder.secret')) {
                 $this->Session->write(self::$sessionKey . '.secret', Configure::read('Filebinder.secret'));
             } else {
-                $this->Session->write(self::$sessionKey . '.secret', Security::hash(time()));
+                $this->Session->write(self::$sessionKey . '.secret', Security::hash((string)time()));
             }
         }
     }
@@ -92,7 +99,7 @@ class RingComponent extends Component
             $modelName = $this->controller->modelClass;
         }
         $model = ClassRegistry::init($modelName);
-        if (!$model) {
+        if (!$model instanceof Model) {
             return false;
         }
         if (empty($this->controller->request->data[$model->alias])) {
@@ -128,7 +135,7 @@ class RingComponent extends Component
             $modelName = $this->controller->modelClass;
         }
         $model = ClassRegistry::init($modelName);
-        if (!$model) {
+        if (!$model instanceof Model) {
             return false;
         }
         $this->Session->delete(self::$sessionKey . '.' . $model->alias);
@@ -249,11 +256,11 @@ class RingComponent extends Component
         $model = null;
 
         if (!empty($this->controller->{$modelName})) {
-            $model =& $this->controller->{$modelName};
+            $model = $this->controller->{$modelName};
         } elseif (!empty($this->controller->{$this->controller->modelClass}->{$modelName})) {
-            $model =& $this->controller->{$this->controller->modelClass}->{$modelName};
+            $model = $this->controller->{$this->controller->modelClass}->{$modelName};
         } else {
-            $model =& ClassRegistry::init($modelName);
+            $model = ClassRegistry::init($modelName);
         }
 
         return $model;
