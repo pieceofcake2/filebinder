@@ -88,7 +88,7 @@ class FilebinderController extends FilebinderAppController
         if (!file_exists($filePath)) {
             throw new NotFoundException(__('Invalid access'));
         }
-        $this->_sendHeader('Content-Disposition: ' . static::contentDisposition((string)$fileName, (string)env('HTTP_USER_AGENT')));
+        $this->_sendHeader('Content-Disposition: ' . static::contentDisposition((string)$fileName));
 
         $this->_sendHeader('Content-Length: ' . filesize($filePath));
         if (!empty($fileContentType)) {
@@ -124,20 +124,16 @@ class FilebinderController extends FilebinderAppController
     /**
      * Returns the value of the Content-Disposition header for a file name.
      *
-     * The quoted file name is the file name without the characters that would end it or the header (quotes,
-     * backslashes and control characters); other browsers than MSIE also get the whole name in `filename*`.
-     * MSIE gets the file name in Shift_JIS, inline, as before.
+     * The file is always sent as an attachment. The quoted file name is the file name without the characters
+     * that would end it or the header (quotes, backslashes and control characters), and `filename*` has the whole
+     * name.
      *
      * @param string $fileName File name.
-     * @param string $userAgent User-Agent of the request.
      * @return string
      */
-    protected static function contentDisposition($fileName, $userAgent)
+    protected static function contentDisposition($fileName)
     {
         $quoted = (string)preg_replace('/["\\\\\x00-\x1F\x7F]/', '', $fileName);
-        if (str_contains($userAgent, 'MSIE')) {
-            return 'inline; filename="' . mb_convert_encoding($quoted, 'SJIS', 'UTF-8') . '"';
-        }
 
         return 'attachment; filename="' . $quoted . '"; filename*=UTF-8\'\'' . rawurlencode($fileName);
     }

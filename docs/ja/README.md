@@ -574,6 +574,8 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 - `Filebinder.secret` は使わなくなりました。設定から削除してかまいません。
 - loader の `Content-Disposition` ヘッダーでは、引用符で囲んだファイル名から引用符と制御文字を除き、
   ファイル名全体を `filename*` に入れます。
+- loader は、どのブラウザにもファイルを添付ファイル (attachment) として送ります。以前は MSIE にだけ、
+  Shift_JIS のファイル名で inline として送っていました。
 
 修正の一覧は [CHANGELOG](https://github.com/pieceofcake2/filebinder/blob/2.x/CHANGELOG.md) を
 参照してください。

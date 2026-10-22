@@ -33,9 +33,9 @@ class FilebinderTestController extends FilebinderController
     /**
      * @inheritDoc
      */
-    public static function contentDisposition($fileName, $userAgent): string
+    public static function contentDisposition($fileName): string
     {
-        return parent::contentDisposition($fileName, $userAgent);
+        return parent::contentDisposition($fileName);
     }
 }
 
@@ -371,20 +371,37 @@ class FilebinderControllerTest extends CakeTestCase
     {
         $this->assertSame(
             'attachment; filename="logo.png"; filename*=UTF-8\'\'logo.png',
-            FilebinderTestController::contentDisposition('logo.png', 'Mozilla/5.0'),
+            FilebinderTestController::contentDisposition('logo.png'),
         );
         $this->assertSame(
             'attachment; filename="a.htmlX-Injected: 1.png"; filename*=UTF-8\'\'a%22.html%0D%0AX-Injected%3A%201%5C.png',
-            FilebinderTestController::contentDisposition("a\".html\r\nX-Injected: 1\\.png", 'Mozilla/5.0'),
+            FilebinderTestController::contentDisposition("a\".html\r\nX-Injected: 1\\.png"),
         );
         $this->assertSame(
             'attachment; filename="ロゴ.png"; filename*=UTF-8\'\'%E3%83%AD%E3%82%B4.png',
-            FilebinderTestController::contentDisposition('ロゴ.png', 'Mozilla/5.0'),
+            FilebinderTestController::contentDisposition('ロゴ.png'),
         );
-        $this->assertSame(
-            'inline; filename="' . mb_convert_encoding('ロゴ.png', 'SJIS', 'UTF-8') . '"',
-            FilebinderTestController::contentDisposition('ロゴ".png', 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1)'),
-        );
+    }
+
+    /**
+     * The loader sends the file as an attachment to every browser, also to MSIE.
+     */
+    public function testLoaderContentDispositionMsie(): void
+    {
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+        $_SERVER['HTTP_USER_AGENT'] = 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1)';
+        try {
+            $this->_sign('FilebinderPost', '1', 'logo', null, 'ロゴ.png');
+            $this->_load('FilebinderPost', '1', 'logo', 'ロゴ.png');
+        } finally {
+            if ($userAgent === null) {
+                unset($_SERVER['HTTP_USER_AGENT']);
+            } else {
+                $_SERVER['HTTP_USER_AGENT'] = $userAgent;
+            }
+        }
+
+        $this->assertContains("Content-Disposition: attachment; filename=\"ロゴ.png\"; filename*=UTF-8''%E3%83%AD%E3%82%B4.png", $this->Controller->sentHeaders);
     }
 
     /**

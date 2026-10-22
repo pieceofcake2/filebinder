@@ -64,7 +64,10 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   secret in the session
 - The file name in the `Content-Disposition` header of the loader was not escaped. Quotes,
   backslashes and control characters are removed from the quoted name, and the full name is sent
-  in `filename*` (except to MSIE, which gets the Shift_JIS name as before)
+  in `filename*`
+- The loader no longer has a branch for MSIE (Internet Explorer), which got the file `inline` with
+  a Shift_JIS file name: every browser gets `Content-Disposition: attachment` with the escaped file
+  name and `filename*=UTF-8''`
 
 - `file_content_type` was the type sent by the browser, which a user can change, and the loader
   sent the files with it, e.g. a PNG file as `text/html`. `RingComponent::bindUp()` now detects it

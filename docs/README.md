@@ -540,6 +540,8 @@ Changes in behavior:
 - `Filebinder.secret` is no longer used and can be removed from the configuration.
 - The `Content-Disposition` header of the loader has no quotes or control characters in the quoted
   file name, and has the full name in `filename*`.
+- The loader sends the files as attachments to every browser. MSIE got them inline, with a
+  Shift_JIS file name.
 
 See the [CHANGELOG](https://github.com/pieceofcake2/filebinder/blob/2.x/CHANGELOG.md) for the fixes.
 
