@@ -880,11 +880,7 @@ class BindableBehavior extends ModelBehavior
             [$class, $method] = $function;
 
             if (is_callable([$class, $method])) {
-                if (is_object($class) && is_a('Object', $class)) {
-                    return $class->dispatchMethod($method, $args);
-                } else {
-                    return call_user_func_array([$class, $method], $args);
-                }
+                return call_user_func_array([$class, $method], $args);
             }
         } elseif (is_string($function)) {
             if (function_exists($function)) {

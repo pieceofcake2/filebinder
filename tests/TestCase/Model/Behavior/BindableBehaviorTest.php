@@ -3,6 +3,45 @@
 App::uses('Folder', 'Utility');
 App::uses('FilebinderPost', 'Model');
 
+/**
+ * Callbacks of beforeAttach and afterAttach
+ */
+class BindableBehaviorTestCallback
+{
+    /**
+     * Paths given to the callbacks
+     *
+     * @var array<string>
+     */
+    public static array $paths = [];
+
+    /**
+     * Records the path and returns true.
+     *
+     * @param string $path File path.
+     * @return bool
+     */
+    public function attach(string $path): bool
+    {
+        static::$paths[] = $path;
+
+        return true;
+    }
+
+    /**
+     * Records the path and returns true.
+     *
+     * @param string $path File path.
+     * @return bool
+     */
+    public static function staticAttach(string $path): bool
+    {
+        static::$paths[] = $path;
+
+        return true;
+    }
+}
+
 class BindableBehaviorTest extends CakeTestCase
 {
     /**
@@ -323,6 +362,45 @@ class BindableBehaviorTest extends CakeTestCase
         $result2 = $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $id]]);
         $this->assertSame('logo2.png', $result2['FilebinderPost']['logo']['file_name']);
         $this->assertFileExists($result2['FilebinderPost']['logo']['file_path']);
+    }
+
+    /**
+     * beforeAttach and afterAttach call an object method, a static method or a function with the file path.
+     */
+    public function testAttachCallbacks(): void
+    {
+        BindableBehaviorTestCallback::$paths = [];
+        $this->FilebinderPost->setSettings([
+            'beforeAttach' => [new BindableBehaviorTestCallback(), 'attach'],
+            'afterAttach' => ['BindableBehaviorTestCallback', 'staticAttach'],
+        ]);
+
+        $result = $this->_saveLogo();
+
+        $this->assertSame([$this->tmpPath, $result['FilebinderPost']['logo']['file_path']], BindableBehaviorTestCallback::$paths);
+    }
+
+    /**
+     * beforeAttach returning false cancels the save.
+     */
+    public function testBeforeAttachFalse(): void
+    {
+        $this->FilebinderPost->setSettings(['beforeAttach' => 'is_dir']);
+        copy($this->_testFile(), $this->tmpPath);
+
+        $result = $this->FilebinderPost->save(['FilebinderPost' => [
+            'title' => 'Title',
+            'logo' => [
+                'model' => 'FilebinderPost',
+                'field_name' => 'logo',
+                'file_name' => 'logo.png',
+                'file_content_type' => 'image/png',
+                'file_size' => 1395,
+                'tmp_bind_path' => $this->tmpPath,
+            ],
+        ]]);
+
+        $this->assertFalse($result);
     }
 
     /**
