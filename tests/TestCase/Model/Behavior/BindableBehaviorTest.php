@@ -1025,13 +1025,6 @@ class BindableBehaviorTest extends CakeTestCase
 
         $this->assertSame('logo.png', $result['FilebinderPost']['logo']['file_name']);
         $this->assertCount(1, $result['FilebinderComment']);
-        if (!isset($result['FilebinderComment'][0]['image'])) {
-            $this->markTestIncomplete(
-                'Known bug: afterFind() of an associated model uses the bound fields of the primary model, which '
-                . 'beforeFind() kept in BindableBehavior::$bindFields, shared by the models; the comment gets '
-                . 'logo => null instead of its image.',
-            );
-        }
         $this->assertArrayNotHasKey('logo', $result['FilebinderComment'][0]);
         $this->assertSame($this->filePath . 'FilebinderComment/' . $commentId . '/image/image.png', $result['FilebinderComment'][0]['image']['file_path']);
     }

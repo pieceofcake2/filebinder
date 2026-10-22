@@ -26,9 +26,12 @@ class BindableBehavior extends ModelBehavior
     public $runtime = [];
 
     /**
-     * Bound fields of the current find(), set by beforeFind() and used by afterFind()
+     * Bound fields of the current find() by model alias, set by beforeFind() and used by afterFind()
      *
-     * @var array
+     * The behavior is shared by the models, so each model keeps its own fields: the afterFind() of an associated
+     * model must not get the fields of the primary model.
+     *
+     * @var array<string, array>
      */
     public $bindFields = [];
 
@@ -144,19 +147,19 @@ class BindableBehavior extends ModelBehavior
         if (empty($model->bindFields)) {
             return $queryData;
         }
-        $this->bindFields = Set::combine($model->bindFields, '/field', '/');
+        $modelName = $model->alias;
+        $this->bindFields[$modelName] = Set::combine($model->bindFields, '/field', '/');
         if (empty($queryData['fields'])) {
             return $queryData;
         }
 
-        $modelName = $model->alias;
         $fields = (array)$queryData['fields'];
         $flip = array_flip($fields);
-        foreach ($this->bindFields as $fieldName => $data) {
+        foreach ($this->bindFields[$modelName] as $fieldName => $data) {
             unset($flip[$modelName . '.' . $fieldName]);
             unset($flip[$fieldName]);
             if (!in_array($modelName . '.' . $fieldName, $fields) && !in_array($fieldName, $fields)) {
-                unset($this->bindFields[$fieldName]);
+                unset($this->bindFields[$modelName][$fieldName]);
             }
         }
         $queryData['fields'] = array_flip($flip);
@@ -901,6 +904,9 @@ class BindableBehavior extends ModelBehavior
     protected function bindFile(Model $model, $data = [])
     {
         $modelName = $model->alias;
+        // The fields of the beforeFind() of this model, used once; without one (e.g. an associated model), all
+        $findFields = $this->bindFields[$modelName] ?? [];
+        unset($this->bindFields[$modelName]);
         if (empty($model->bindFields) || empty($data)) {
             return $data;
         }
@@ -923,7 +929,7 @@ class BindableBehavior extends ModelBehavior
             $tmpData = $data;
         }
 
-        $bindFields = empty($this->bindFields) ? Set::combine($model->bindFields, '/field', '/') : $this->bindFields;
+        $bindFields = empty($findFields) ? Set::combine($model->bindFields, '/field', '/') : $findFields;
         $model_ids = Set::extract('/' . $modelName . '/' . $this->runtime[$model->alias]['primaryKey'], $tmpData);
 
         if (!$model_ids) {
