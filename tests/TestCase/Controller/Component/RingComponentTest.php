@@ -32,6 +32,7 @@ class RingComponentTest extends CakeTestCase
     public $fixtures = [
         'plugin.filebinder.attachment',
         'plugin.filebinder.filebinder_post',
+        'plugin.filebinder.filebinder_comment',
     ];
 
     protected FilebinderPostsTestController $Controller;
@@ -223,6 +224,200 @@ class RingComponentTest extends CakeTestCase
         $this->Controller->Ring->bindUp();
 
         $this->assertSame($expected, $this->Controller->request->data['FilebinderPost']['logo']);
+    }
+
+    /**
+     * Without a tmpPath, bindUp() moves the uploaded files to CACHE.
+     */
+    public function testBindUpDefaultTmpPath(): void
+    {
+        unset($this->Controller->FilebinderPost->bindFields[0]['tmpPath']);
+        $this->_setUploadedFile();
+
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+
+        $this->assertStringStartsWith(CACHE . 'ring_', $this->Controller->request->data['FilebinderPost']['logo']['tmp_bind_path']);
+    }
+
+    /**
+     * bindUp() of a request without data of the model forgets the files kept in the session.
+     */
+    public function testBindUpWithoutData(): void
+    {
+        $this->_setUploadedFile();
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+        $this->Controller->Ring->bindDown();
+        $this->assertNotNull($this->Controller->Session->read('Filebinder.FilebinderPost.logo'));
+
+        $this->Controller->request->data = [];
+        $this->assertFalse($this->Controller->Ring->bindUp());
+
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost'));
+    }
+
+    /**
+     * bindDown() of a request without data of the model forgets the files kept in the session.
+     */
+    public function testBindDownWithoutData(): void
+    {
+        $this->_setUploadedFile();
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+        $this->Controller->Ring->bindDown();
+
+        $this->Controller->request->data = ['Other' => ['title' => 'Title']];
+        $this->assertFalse($this->Controller->Ring->bindDown('FilebinderPost'));
+
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost'));
+    }
+
+    /**
+     * delete_<field> drops the uploaded file and the file kept in the session.
+     */
+    public function testBindUpDelete(): void
+    {
+        $this->_setUploadedFile();
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+        $this->Controller->Ring->bindDown();
+
+        $this->_setUploadedFile();
+        $this->Controller->request->data['FilebinderPost']['delete_logo'] = '1';
+        $this->Controller->Ring->bindUp();
+        $this->assertNull($this->Controller->request->data['FilebinderPost']['logo']);
+
+        $this->Controller->request->data['FilebinderPost']['logo'] = [
+            'name' => '',
+            'type' => '',
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_NO_FILE,
+            'size' => 0,
+        ];
+        $this->Controller->Ring->bindUp();
+        $this->assertNull($this->Controller->request->data['FilebinderPost']['logo']);
+    }
+
+    /**
+     * A field that is not upload data, e.g. a string, gets null, and the other fields are kept.
+     */
+    public function testBindUpNotUploadData(): void
+    {
+        $this->Controller->request->data = ['FilebinderPost' => ['title' => 'Title', 'logo' => 'logo.png']];
+
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+        $this->Controller->Ring->bindDown();
+
+        $this->assertSame(['FilebinderPost' => ['title' => 'Title', 'logo' => null]], $this->Controller->request->data);
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost'));
+    }
+
+    /**
+     * bindDown() does not keep a file with a validation error.
+     */
+    public function testBindDownValidationError(): void
+    {
+        $this->_setUploadedFile();
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+        $this->Controller->FilebinderPost->validationErrors = ['logo' => ['extension']];
+
+        $this->Controller->Ring->bindDown();
+
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost.logo'));
+    }
+
+    /**
+     * With $autoBindDown, beforeRender() keeps the file data in the session, once.
+     */
+    public function testAutoBindDown(): void
+    {
+        $this->_setUploadedFile();
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp('FilebinderPost', true);
+        $this->Controller->Ring->bindUp('FilebinderPost', true);
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost.logo'));
+
+        $this->Controller->Ring->beforeRender($this->Controller);
+
+        $this->assertSame($this->Controller->request->data['FilebinderPost']['logo'], $this->Controller->Session->read('Filebinder.FilebinderPost.logo'));
+        $this->assertSame([], $this->Controller->Ring->_autoBindDown);
+    }
+
+    /**
+     * Without $autoBindDown, beforeRender() keeps nothing in the session.
+     */
+    public function testNoAutoBindDown(): void
+    {
+        $this->_setUploadedFile();
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+
+        $this->Controller->Ring->beforeRender($this->Controller);
+
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost'));
+    }
+
+    /**
+     * The records of hasMany data (with numeric keys) are bound up and down one by one.
+     */
+    public function testHasManyData(): void
+    {
+        $tmpPath = $this->path . 'bindup.png';
+        copy($this->_testFile(), $tmpPath);
+        $this->Controller->request->data = ['FilebinderPost' => [
+            ['title' => 'First', 'logo' => ['name' => 'first.png', 'tmp_name' => $tmpPath, 'type' => 'image/png', 'size' => 100, 'error' => 0]],
+            ['title' => 'Second', 'logo' => ['name' => '', 'type' => '', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0]],
+        ]];
+
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+        $this->Controller->Ring->bindDown();
+
+        $first = $this->Controller->request->data['FilebinderPost'][0]['logo'];
+        $this->assertSame('first.png', $first['file_name']);
+        $this->assertNull($this->Controller->request->data['FilebinderPost'][1]['logo']);
+        $this->assertSame($first, $this->Controller->Session->read('Filebinder.FilebinderPost.0.logo'));
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost.1.logo'));
+
+        // The next request without files gets the file of the first record back
+        $this->Controller->request->data = ['FilebinderPost' => [
+            ['title' => 'First', 'logo' => ['name' => '', 'type' => '', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0]],
+            ['title' => 'Second', 'logo' => ['name' => '', 'type' => '', 'tmp_name' => '', 'error' => UPLOAD_ERR_NO_FILE, 'size' => 0]],
+        ]];
+        $this->Controller->Ring->bindUp();
+        $this->assertSame($first, $this->Controller->request->data['FilebinderPost'][0]['logo']);
+        $this->assertNull($this->Controller->request->data['FilebinderPost'][1]['logo']);
+    }
+
+    /**
+     * bindUp() and bindDown() of another model than the model of the controller.
+     */
+    public function testOtherModel(): void
+    {
+        $Comment = ClassRegistry::init('FilebinderComment');
+        $Comment->bindFields = [['field' => 'image', 'tmpPath' => $this->path]];
+        $tmpPath = $this->path . 'bindup.png';
+        copy($this->_testFile(), $tmpPath);
+        $this->_setUploadedFile();
+        $this->Controller->request->data['FilebinderComment'] = [
+            'body' => 'Comment',
+            'image' => ['name' => 'image.png', 'tmp_name' => $tmpPath, 'type' => 'image/png', 'size' => 100, 'error' => 0],
+        ];
+
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp('FilebinderComment');
+        $this->Controller->Ring->bindDown('FilebinderComment');
+
+        $image = $this->Controller->request->data['FilebinderComment']['image'];
+        $this->assertSame('FilebinderComment', $image['model']);
+        $this->assertSame('image', $image['field_name']);
+        $this->assertSame($image, $this->Controller->Session->read('Filebinder.FilebinderComment.image'));
+        // The data of the model of the controller are not changed
+        $this->assertSame('logo.png', $this->Controller->request->data['FilebinderPost']['logo']['name']);
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost'));
     }
 
     /**
