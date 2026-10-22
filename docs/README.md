@@ -302,8 +302,9 @@ echo $this->Label->url($post['Post']['image']);
 `image()`, `link()` and `url()` return `noFile` (or an empty string) when there is no file. A file
 under the webroot has its path as URL. Other files, and the uploaded files of a confirmation page,
 are sent by the `loader` action of the plugin, with a signed URL that expires after one minute
-(`Filebinder.expire`, e.g. `'+10 minutes'`). The key is signed with a secret kept in the session,
-`Filebinder.secret` when it is set.
+(`Filebinder.expire`, e.g. `'+10 minutes'`). The key signs the model, the ID, the field and the
+file name with a secret kept in the session: `Filebinder.secret` when it is set, otherwise a
+random value created by the Ring component for each session.
 
 | Option | Description |
 | --- | --- |
@@ -465,6 +466,13 @@ Changes in behavior:
 - `funcCheckFile` fails when the file does not exist, without calling the function.
 - File sizes with a lowercase unit (`'1mb'`) are read as that unit; they were read as kilobytes.
 - Files restored from S3 get `fileMode`.
+- The key of the loader URLs signs the file name. Loader URLs created before the upgrade stop
+  working if they have a file name, as the URLs of `LabelHelper` do; they are short-lived
+  (`Filebinder.expire`, one minute by default), so reload the pages that show them.
+- The loader sends only the files inside the tmp directory for the uploaded files (model ID `0`).
+- Without `Filebinder.secret`, the secret of the loader URLs is random.
+- The `Content-Disposition` header of the loader has no quotes or control characters in the quoted
+  file name, and has the full name in `filename*`.
 
 See the [CHANGELOG](https://github.com/pieceofcake2/filebinder/blob/2.x/CHANGELOG.md) for the fixes.
 

@@ -35,6 +35,20 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
 - With the AsyncAws client, the `Content-Type` of the uploaded files is detected from their
   contents (the AWS SDK sets it from the extension, as before)
 
+### Security
+
+- The loader action sent any readable file for a tmp URL (model ID `0`) whose file name was
+  changed to a path like `../config/database.php`: the file name was not signed. It now accepts
+  only a plain base name of a file inside the tmp directory (checked with `realpath()`)
+- The key of the loader URLs now signs the file name, and is compared in constant time. URLs
+  signed before the upgrade with a file name stop working; they expire after `Filebinder.expire`
+  (one minute by default). URLs without a file name keep their key
+- Without `Filebinder.secret`, the secret of the loader URLs was `Security::hash(time())`, which
+  anyone can compute. It is now created with `random_bytes()`
+- The file name in the `Content-Disposition` header of the loader was not escaped. Quotes,
+  backslashes and control characters are removed from the quoted name, and the full name is sent
+  in `filename*` (except to MSIE, which gets the Shift_JIS name as before)
+
 ### Fixes
 
 - Replacing the file of a field, or deleting it with `delete_<field>`, failed with

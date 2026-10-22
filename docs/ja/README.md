@@ -319,8 +319,9 @@ echo $this->Label->url($post['Post']['image']);
 `image()`、`link()`、`url()` は、ファイルがなければ `noFile` (なければ空文字列) を返します。webroot の
 下にあるファイルは、そのパスが URL になります。それ以外のファイルと、確認画面でのアップロード済みの
 ファイルは、プラグインの `loader` アクションが送ります。URL には署名があり、1 分で期限が切れます
-(`Filebinder.expire` で変更できます。例: `'+10 minutes'`)。署名には、セッションに保存した秘密の値を
-使います。`Filebinder.secret` を設定した場合はその値を使います。
+(`Filebinder.expire` で変更できます。例: `'+10 minutes'`)。署名の対象はモデル、ID、フィールド、
+ファイル名で、セッションに保存した秘密の値を使います。`Filebinder.secret` を設定した場合はその値、
+設定しない場合は Ring コンポーネントがセッションごとに作るランダムな値です。
 
 | オプション | 説明 |
 | --- | --- |
@@ -495,6 +496,14 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 - 小文字の単位のファイルサイズ (`'1mb'`) を、その単位で解釈します。以前はキロバイトとして
   解釈していました。
 - S3 から復元したファイルに `fileMode` を設定します。
+- loader の URL の署名にファイル名を含めます。アップグレード前に作られた、ファイル名のある loader の
+  URL (`LabelHelper` の URL はファイル名を含みます) は使えなくなります。URL の有効期限は短い
+  (`Filebinder.expire`、デフォルトは 1 分) ので、その URL を表示しているページは再読み込みしてください。
+- アップロードされたファイル (モデル ID `0`) について、loader は tmp ディレクトリの中のファイルだけを
+  送ります。
+- `Filebinder.secret` を設定しない場合、loader の URL の秘密の値はランダムになります。
+- loader の `Content-Disposition` ヘッダーでは、引用符で囲んだファイル名から引用符と制御文字を除き、
+  ファイル名全体を `filename*` に入れます。
 
 修正の一覧は [CHANGELOG](https://github.com/pieceofcake2/filebinder/blob/2.x/CHANGELOG.md) を
 参照してください。
