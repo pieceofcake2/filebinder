@@ -1,11 +1,6 @@
 <?php
 
-if (file_exists(dirname(__FILE__) . '/../../vendor/autoload.php')) {
-    require_once dirname(__FILE__) . '/../../vendor/autoload.php';
-}
-
-use Aws\S3\Exception\S3Exception;
-use Aws\S3\S3Client;
+App::uses('FilebinderS3StorageFactory', 'Filebinder.Storage');
 
 /**
  * Bindable Behavior
@@ -345,49 +340,25 @@ class BindableBehavior extends ModelBehavior
                  */
                 $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                 if ($s3Storage) {
-                    if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                    $s3 = $this->_s3Settings($bindFields[$fieldName] ?? []);
+                    if (empty($s3['bucket'])) {
                         //__('Validation Error: S3 Parameter Error');
                         $this->_removeFile($tmpFile);
 
                         return false;
                     }
-                    $options = [
-                        'credentials' => [
-                            'key' => Configure::read('Filebinder.S3.key'),
-                            'secret' => Configure::read('Filebinder.S3.secret'),
-                        ],
-                        'region' => Configure::read('Filebinder.S3.region'),
-                        'version' => 'latest',
-                    ];
-
-                    $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                    if (empty($bucket)) {
-                        //__('Validation Error: S3 Parameter Error');
-                        $this->_removeFile($tmpFile);
-
-                        return false;
-                    }
-                    $s3 = S3Client::factory($options);
-
-                    $region = !empty($bindFields[$fieldName]['region']) ? $bindFields[$fieldName]['region'] : Configure::read('Filebinder.S3.region');
-                    $acl = !empty($bindFields[$fieldName]['acl']) ? $bindFields[$fieldName]['acl'] : Configure::read('Filebinder.S3.acl');
-                    if (empty($acl)) {
-                        $acl = 'public-read';
-                    }
-                    $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
 
                     try {
-                        $result = $s3->putObject([
-                            'Bucket' => $bucket,
-                            'Key' => $urlPrefix . $model->transferTo(array_diff_key(['model_id' => $model_id] + $value, Set::normalize(['tmp_bind_path']))),
-                            'Body' => fopen($tmpFile, 'r'),
-                            'ACL' => $acl,
-                        ]);
-                    } catch (S3Exception $e) {
+                        $this->s3Storage($model, $fieldName)->put(
+                            $s3['bucket'],
+                            $s3['urlPrefix'] . $model->transferTo(array_diff_key(['model_id' => $model_id] + $value, Set::normalize(['tmp_bind_path']))),
+                            $tmpFile,
+                            ['ACL' => $s3['acl']],
+                        );
+                    } catch (Exception $e) {
                         $this->_removeFile($tmpFile);
-                        throw new S3Exception($e->getMessage());
 
-                        return false;
+                        throw $e;
                     }
                 }
             }
@@ -488,30 +459,16 @@ class BindableBehavior extends ModelBehavior
                  */
                 $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                 if ($s3Storage) {
-                    if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                    $s3 = $this->_s3Settings($value);
+                    if (empty($s3['bucket'])) {
                         //__('Validation Error: S3 Parameter Error');
                         return false;
                     }
-                    $options = [
-                        'credentials' => [
-                            'key' => Configure::read('Filebinder.S3.key'),
-                            'secret' => Configure::read('Filebinder.S3.secret'),
-                        ],
-                        'region' => Configure::read('Filebinder.S3.region'),
-                        'version' => 'latest',
-                    ];
-                    $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                    if (empty($bucket)) {
-                        //__('Validation Error: S3 Parameter Error');
-                        return false;
-                    }
-                    $s3 = S3Client::factory($options);
-                    $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
 
-                    $result = $s3->deleteObject([
-                        'Bucket' => $bucket,
-                        'Key' => $urlPrefix . $model->transferTo($deleteFields[$fieldName]),
-                    ]);
+                    $this->s3Storage($model, $fieldName)->delete(
+                        $s3['bucket'],
+                        $s3['urlPrefix'] . $model->transferTo($deleteFields[$fieldName]),
+                    );
                 }
 
                 /**
@@ -558,6 +515,71 @@ class BindableBehavior extends ModelBehavior
         }
 
         return false;
+    }
+
+    /**
+     * Returns the S3 storage of a bound field.
+     *
+     * The S3 client is chosen with `Filebinder.S3.client` (`Aws` or `AsyncAws`), or is the client of the loaded
+     * plugin (see `FilebinderS3StorageFactory`). It is configured with the `Aws` (or `AsyncAws`) configuration of the
+     * plugin, and with the deprecated `Filebinder.S3.key`, `Filebinder.S3.secret` and `Filebinder.S3.region`, and
+     * the `region` of the field, which take precedence.
+     *
+     * @param Model $model Model using the behavior.
+     * @param string|null $fieldName Bound field.
+     * @return \FilebinderS3StorageInterface
+     * @throws \FilebinderS3StorageException When no S3 client can be used.
+     */
+    public function s3Storage(Model $model, $fieldName = null)
+    {
+        $field = [];
+        foreach ((array)$model->bindFields as $bindField) {
+            if (isset($bindField['field']) && $bindField['field'] === $fieldName) {
+                $field = $bindField;
+            }
+        }
+
+        return FilebinderS3StorageFactory::create($this->_s3ClientArgs($field));
+    }
+
+    /**
+     * Returns the options of the S3 client of a bound field: the deprecated `Filebinder.S3.key` and
+     * `Filebinder.S3.secret` as `credentials`, and the `region` of the field or `Filebinder.S3.region`.
+     *
+     * @param array $field Settings of the bound field.
+     * @return array<string, mixed>
+     */
+    protected function _s3ClientArgs(array $field)
+    {
+        $args = [];
+        $key = Configure::read('Filebinder.S3.key');
+        $secret = Configure::read('Filebinder.S3.secret');
+        if (!empty($key) && !empty($secret)) {
+            $args['credentials'] = ['key' => $key, 'secret' => $secret];
+        }
+        $region = !empty($field['region']) ? $field['region'] : Configure::read('Filebinder.S3.region');
+        if (!empty($region)) {
+            $args['region'] = $region;
+        }
+
+        return $args;
+    }
+
+    /**
+     * Returns the S3 settings of a bound field: `bucket`, `acl` and `urlPrefix`, from the field or `Filebinder.S3`.
+     *
+     * @param array $field Settings of the bound field.
+     * @return array{bucket: mixed, acl: string, urlPrefix: mixed}
+     */
+    protected function _s3Settings(array $field)
+    {
+        $acl = !empty($field['acl']) ? $field['acl'] : Configure::read('Filebinder.S3.acl');
+
+        return [
+            'bucket' => !empty($field['bucket']) ? $field['bucket'] : Configure::read('Filebinder.S3.bucket'),
+            'acl' => empty($acl) ? 'public-read' : $acl,
+            'urlPrefix' => !empty($field['urlPrefix']) ? $field['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix'),
+        ];
     }
 
     /**
@@ -1018,38 +1040,27 @@ class BindableBehavior extends ModelBehavior
                          */
                         $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                         if ($restoreFromStorage && $filePath && $s3Storage) {
-                            if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                            $s3 = $this->_s3Settings($bindFields[$fieldName]);
+                            if (empty($s3['bucket'])) {
                                 //__('Validation Error: S3 Parameter Error');
                                 return false;
                             }
-                            $options = [
-                                'credentials' => [
-                                    'key' => Configure::read('Filebinder.S3.key'),
-                                    'secret' => Configure::read('Filebinder.S3.secret'),
-                                ],
-                                'region' => Configure::read('Filebinder.S3.region'),
-                                'version' => 'latest',
-                            ];
-                            $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                            if (empty($bucket)) {
-                                //__('Validation Error: S3 Parameter Error');
-                                return false;
-                            }
-                            $s3 = S3Client::factory($options);
-                            $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
 
                             $currentMask = umask();
                             umask(0);
-                            if (!is_dir(dirname($filePath))) {
-                                mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
-                            }
+                            try {
+                                if (!is_dir(dirname($filePath))) {
+                                    mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
+                                }
 
-                            $result = $s3->getObject([
-                                'Bucket' => $bucket,
-                                'Key' => $urlPrefix . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
-                                'SaveAs' => $filePath,
-                            ]);
-                            umask($currentMask);
+                                $this->s3Storage($model, $fieldName)->saveAs(
+                                    $s3['bucket'],
+                                    $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
+                                    $filePath,
+                                );
+                            } finally {
+                                umask($currentMask);
+                            }
                         }
 
                         if (file_exists($filePath) && is_file($filePath)) {
@@ -1075,32 +1086,16 @@ class BindableBehavior extends ModelBehavior
                          */
                         $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                         if ($s3Storage) {
-                            if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                            $s3 = $this->_s3Settings($bindFields[$fieldName]);
+                            if (empty($s3['bucket'])) {
                                 //__('Validation Error: S3 Parameter Error');
                                 return false;
                             }
-                            $options = ['key' => Configure::read('Filebinder.S3.key'),
-                                'secret' => Configure::read('Filebinder.S3.secret'),
-                            ];
-                            $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                            if (empty($bucket)) {
-                                //__('Validation Error: S3 Parameter Error');
-                                return false;
-                            }
-                            $s3 = S3Client::factory($options);
-                            $region = !empty($bindFields[$fieldName]['region']) ? $bindFields[$fieldName]['region'] : Configure::read('Filebinder.S3.region');
-                            if (!empty($region)) {
-                                $s3->setRegion($region);
-                            }
-                            $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
-                            $tmpFilePath = '/tmp/' . sha1(uniqid('', true));
 
-                            $result = $s3->getObject([
-                                'Bucket' => $bucket,
-                                'Key' => $urlPrefix . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
-                                'SaveAs' => $tmpFilePath,
-                            ]);
-                            $tmpData[$key][$modelName][$fieldName]['file_object'] = base64_encode(file_get_contents($tmpFilePath));
+                            $tmpData[$key][$modelName][$fieldName]['file_object'] = base64_encode($this->s3Storage($model, $fieldName)->get(
+                                $s3['bucket'],
+                                $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
+                            ));
                         }
                     }
                 } else {

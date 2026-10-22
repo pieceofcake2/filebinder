@@ -30,7 +30,17 @@ CakePlugin::load('Filebinder', [
     'path' => dirname(__DIR__) . DS,
 ]);
 
+// The plugins of the S3 clients (without their bootstrap, which registers the s3:// stream wrapper)
+CakePlugin::load('Aws', [
+    'path' => InstalledVersions::getInstallPath('pieceofcake2/aws') . DS,
+]);
+CakePlugin::load('AsyncAws', [
+    'path' => InstalledVersions::getInstallPath('pieceofcake2/async-aws') . DS,
+]);
+
 // The models of the tests
 App::build([
     'Model' => [__DIR__ . DS . 'test_app' . DS . 'Model' . DS],
 ]);
+
+require_once __DIR__ . DS . 'TestCase' . DS . 'MockS3Trait.php';
