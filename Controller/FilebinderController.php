@@ -59,7 +59,13 @@ class FilebinderController extends FilebinderAppController
                     }
                 }
             }
-            $filePath = $tmpPath . $fileName;
+            if (!static::isBaseName($fileName)) {
+                throw new NotFoundException(__('Invalid access'));
+            }
+            $filePath = static::fileInDirectory($tmpPath, $fileName);
+            if ($filePath === null) {
+                throw new NotFoundException(__('Invalid access'));
+            }
         } else {
             $query = [];
             $query['recursive'] = -1;
@@ -106,5 +112,45 @@ class FilebinderController extends FilebinderAppController
             ob_end_clean(); // clean
         }
         readfile($filePath);
+    }
+
+    /**
+     * Checks that a file name is a plain base name, without a directory.
+     *
+     * @param mixed $fileName File name.
+     * @return bool
+     */
+    protected static function isBaseName($fileName)
+    {
+        if (!is_string($fileName) || $fileName === '' || $fileName === '.' || $fileName === '..') {
+            return false;
+        }
+        if (strpbrk($fileName, "/\\\0") !== false) {
+            return false;
+        }
+
+        return basename($fileName) === $fileName;
+    }
+
+    /**
+     * Returns the real path of a file in a directory, or null when the file does not exist or is not in the
+     * directory (e.g. through a symbolic link).
+     *
+     * @param string $directory Directory.
+     * @param string $fileName File name.
+     * @return string|null
+     */
+    protected static function fileInDirectory($directory, $fileName)
+    {
+        $realDirectory = realpath($directory);
+        $realPath = realpath($directory . DS . $fileName);
+        if ($realDirectory === false || $realPath === false || !is_file($realPath)) {
+            return null;
+        }
+        if (!str_starts_with($realPath, rtrim($realDirectory, DS) . DS)) {
+            return null;
+        }
+
+        return $realPath;
     }
 }

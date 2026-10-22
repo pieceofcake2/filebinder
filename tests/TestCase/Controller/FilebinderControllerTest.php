@@ -38,9 +38,12 @@ class FilebinderControllerTest extends CakeTestCase
         $this->filePath = TMP . 'tests' . DS . 'filebinder' . DS;
         new Folder($this->filePath . 'FilebinderPost' . DS . '1' . DS . 'logo', true);
         copy(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', $this->filePath . 'FilebinderPost' . DS . '1' . DS . 'logo' . DS . 'logo.png');
+        new Folder($this->filePath . 'tmp', true);
+        copy(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', $this->filePath . 'tmp' . DS . 'ring_20261022_abc_logo.png');
         ClassRegistry::init('FilebinderPost')->bindFields = [
             [
                 'field' => 'logo',
+                'tmpPath' => $this->filePath . 'tmp' . DS,
                 'filePath' => $this->filePath,
             ],
         ];
@@ -125,15 +128,71 @@ class FilebinderControllerTest extends CakeTestCase
     }
 
     /**
+     * loader() sends an uploaded file of the tmp directory (model ID 0).
+     */
+    public function testLoaderTmpFile(): void
+    {
+        $this->_sign('FilebinderPost', '0', 'logo', null, 'ring_20261022_abc_logo.png');
+
+        $output = $this->_load('FilebinderPost', '0', 'logo', 'ring_20261022_abc_logo.png');
+
+        $this->assertSame(file_get_contents($this->filePath . 'tmp/ring_20261022_abc_logo.png'), $output);
+    }
+
+    /**
+     * File names that are not a base name, for a file outside the tmp directory.
+     *
+     * @return array<array{string}>
+     */
+    public static function traversalFileNames(): array
+    {
+        return [
+            ['../FilebinderPost/1/logo/logo.png'],
+            ['..%2FFilebinderPost%2F1%2Flogo%2Flogo.png'],
+            ['..\\FilebinderPost\\1\\logo\\logo.png'],
+            ['..'],
+            ['.'],
+            [''],
+            ["ring_20261022_abc_logo.png\0.txt"],
+        ];
+    }
+
+    /**
+     * loader() rejects a tmp file name that is not a base name.
+     *
+     * @dataProvider traversalFileNames
+     */
+    public function testLoaderTmpFileTraversal(string $fileName): void
+    {
+        $this->_sign('FilebinderPost', '0', 'logo', null, $fileName);
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '0', 'logo', $fileName);
+    }
+
+    /**
+     * loader() rejects a tmp file that is a symbolic link to a file outside the tmp directory.
+     */
+    public function testLoaderTmpFileSymlink(): void
+    {
+        symlink($this->filePath . 'FilebinderPost/1/logo/logo.png', $this->filePath . 'tmp/link.png');
+        $this->_sign('FilebinderPost', '0', 'logo', null, 'link.png');
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '0', 'logo', 'link.png');
+    }
+
+    /**
      * Signs the URL of a file as LabelHelper does.
      *
      * @param string $model Model name.
      * @param string $modelId Model ID.
      * @param string $fieldName Field name.
      * @param int|null $expire Expiration time. Default: in a minute.
+     * @param string $fileName File name of the URL.
      * @return void
      */
-    protected function _sign(string $model, string $modelId, string $fieldName, ?int $expire = null): void
+    protected function _sign(string $model, string $modelId, string $fieldName, ?int $expire = null, string $fileName = ''): void
     {
         $expire = $expire ?? strtotime('+1 minute');
         $this->Controller->request->query = [
