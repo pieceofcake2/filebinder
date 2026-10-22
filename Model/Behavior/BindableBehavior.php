@@ -791,7 +791,7 @@ class BindableBehavior extends ModelBehavior
 
         $tmpFilePath = empty($file['tmp_bind_path']) ? $file['file_path'] : $file['tmp_bind_path'];
 
-        if (!file_exists($tmpFilePath) && is_file($tmpFilePath)) {
+        if (!is_file($tmpFilePath)) {
             return false;
         }
 

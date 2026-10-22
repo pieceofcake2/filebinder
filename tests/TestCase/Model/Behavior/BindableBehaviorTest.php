@@ -492,6 +492,19 @@ class BindableBehaviorTest extends CakeTestCase
     }
 
     /**
+     * funcCheckFile() calls the function with the path of the file, and fails when the file does not exist.
+     */
+    public function testFuncCheckFile(): void
+    {
+        copy($this->_testFile(), $this->tmpPath);
+
+        $this->assertTrue($this->FilebinderPost->funcCheckFile(['logo' => ['tmp_bind_path' => $this->tmpPath]], 'is_file'));
+        $this->assertFalse($this->FilebinderPost->funcCheckFile(['logo' => ['tmp_bind_path' => $this->tmpPath]], 'is_dir'));
+        $this->assertFalse($this->FilebinderPost->funcCheckFile(['logo' => ['tmp_bind_path' => $this->filePath . 'missing.png']], 'is_string'));
+        $this->assertFalse($this->FilebinderPost->funcCheckFile(['logo' => ['tmp_bind_path' => $this->filePath]], 'is_string'));
+    }
+
+    /**
      * calcFileSizeUnit() converts the units K, M, G and T, in upper or lower case, with or without B.
      */
     public function testCalcFileSizeUnit(): void
