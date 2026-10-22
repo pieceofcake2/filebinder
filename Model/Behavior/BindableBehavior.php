@@ -148,7 +148,7 @@ class BindableBehavior extends ModelBehavior
             return $queryData;
         }
         $modelName = $model->alias;
-        $this->bindFields[$modelName] = Set::combine($model->bindFields, '/field', '/');
+        $this->bindFields[$modelName] = $this->_bindFieldsByName($model);
         if (empty($queryData['fields'])) {
             return $queryData;
         }
@@ -192,7 +192,7 @@ class BindableBehavior extends ModelBehavior
         $modelName = $model->alias;
         $model->bindedData = $model->data;
         foreach ($model->data[$modelName] as $fieldName => $value) {
-            if (!in_array($fieldName, Set::extract('/field', $model->bindFields))) {
+            if (!in_array($fieldName, array_keys($this->_bindFieldsByName($model)))) {
                 continue;
             }
 
@@ -229,12 +229,7 @@ class BindableBehavior extends ModelBehavior
                 /**
                  * Database storage
                  */
-                $dbStorage = in_array(BindableBehavior::STORAGE_DB, (array)$this->settings[$model->alias]['storage']);
-                // backward compatible
-                if (isset($this->settings[$model->alias]['dbStorage'])) {
-                    $dbStorage = $this->settings[$model->alias]['dbStorage'];
-                }
-                if ($dbStorage) {
+                if ($this->_storageEnabled($model, BindableBehavior::STORAGE_DB)) {
                     $bind['file_object'] = base64_encode(file_get_contents($tmpFile));
                 }
             }
@@ -278,8 +273,8 @@ class BindableBehavior extends ModelBehavior
             }
         }
 
-        $bindFields = Set::combine($model->bindFields, '/field', '/');
-        $fields = Set::extract('/field', $model->bindFields);
+        $bindFields = $this->_bindFieldsByName($model);
+        $fields = array_keys($bindFields);
         $deleteFields = [];
 
         foreach ($fields as $field) {
@@ -355,8 +350,7 @@ class BindableBehavior extends ModelBehavior
                 /**
                  * S3 storage
                  */
-                $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
-                if ($s3Storage) {
+                if ($this->_storageEnabled($model, BindableBehavior::STORAGE_S3)) {
                     $s3 = $this->_s3Settings($bindFields[$fieldName] ?? []);
                     if (empty($s3['bucket'])) {
                         //__('Validation Error: S3 Parameter Error');
@@ -480,7 +474,7 @@ class BindableBehavior extends ModelBehavior
             ]);
 
         if ($result) {
-            $bindFields = Set::combine($model->bindFields, '/field', '/');
+            $bindFields = $this->_bindFieldsByName($model);
             foreach ($bindFields as $fieldName => $value) {
                 if (!isset($deleteFields[$fieldName])) {
                     continue;
@@ -489,8 +483,7 @@ class BindableBehavior extends ModelBehavior
                 /**
                  * S3 storage
                  */
-                $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
-                if ($s3Storage) {
+                if ($this->_storageEnabled($model, BindableBehavior::STORAGE_S3)) {
                     $s3 = $this->_s3Settings($value);
                     if (empty($s3['bucket'])) {
                         //__('Validation Error: S3 Parameter Error');
@@ -934,7 +927,7 @@ class BindableBehavior extends ModelBehavior
             $tmpData = $data;
         }
 
-        $bindFields = $findFields ?? Set::combine($model->bindFields, '/field', '/');
+        $bindFields = $findFields ?? $this->_bindFieldsByName($model);
         $model_ids = Set::extract('/' . $modelName . '/' . $this->runtime[$model->alias]['primaryKey'], $tmpData);
 
         if (!$model_ids) {
@@ -980,135 +973,43 @@ class BindableBehavior extends ModelBehavior
             }
             $model_id = $value[$modelName][$this->runtime[$model->alias]['primaryKey']];
             foreach ($bindFields as $fieldName => $bindValue) {
-                if (array_key_exists($model_id . '.' . $fieldName, $binds)) {
-                    $bind = $binds[$model_id . '.' . $fieldName][$this->settings[$model->alias]['model']];
-                    $baseDir = empty($bindFields[$fieldName]['filePath']) ? $this->settings[$model->alias]['filePath'] : $bindFields[$fieldName]['filePath'];
-                    if ($baseDir) {
-                        $filePath = $baseDir . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object'])));
-                    } else {
-                        $filePath = false;
-                    }
-                    $bind['file_path'] = $filePath;
-                    $bind['bindedModel'] = $this->runtime[$model->alias]['bindedModel']->alias;
-                    $tmpData[$key][$modelName][$fieldName] = $bind;
-
-                    $restoreFromStorage = $this->settings[$model->alias]['restoreFromStorage'];
-
-                    if ((!file_exists($filePath) || filemtime($filePath) < strtotime($bind['modified']))) {
-
-                        /**
-                         * Database storage
-                         */
-                        $dbStorage = in_array(BindableBehavior::STORAGE_DB, (array)$this->settings[$model->alias]['storage']);
-                        // backward compatible
-                        if (isset($this->settings[$model->alias]['dbStorage'])) {
-                            $dbStorage = $this->settings[$model->alias]['dbStorage'];
-                        }
-                        if ($restoreFromStorage && $filePath && $dbStorage) {
-
-                            /**
-                             * create entity from record data
-                             */
-                            if ($this->settings[$model->alias]['withObject']) {
-                                $fileObject = $bind['file_object'];
-                            } else {
-                                $all = $this->runtime[$model->alias]['bindedModel']->findById($bind['id']);
-                                $fileObject = $all[$this->settings[$model->alias]['model']]['file_object'];
-                            }
-
-                            if (!$fileObject) {
-                                continue;
-                            }
-
-                            $currentMask = umask();
-                            umask(0);
-                            if (!is_dir(dirname($filePath))) {
-                                mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
-                            }
-
-                            if (file_exists($filePath) && is_file($filePath)) {
-                                unlink($filePath);
-                            }
-
-                            if (
-                                !file_put_contents($filePath, base64_decode($fileObject))
-                                || !chmod($filePath, $this->settings[$model->alias]['fileMode'])
-                            ) {
-                                umask($currentMask);
-
-                                return false;
-                            }
-                            umask($currentMask);
-                        }
-
-                        /**
-                         * S3 storage
-                         */
-                        $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
-                        if ($restoreFromStorage && $filePath && $s3Storage) {
-                            $s3 = $this->_s3Settings($bindFields[$fieldName]);
-                            if (empty($s3['bucket'])) {
-                                //__('Validation Error: S3 Parameter Error');
-                                return false;
-                            }
-
-                            $currentMask = umask();
-                            umask(0);
-                            try {
-                                if (!is_dir(dirname($filePath))) {
-                                    mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
-                                }
-
-                                $this->s3Storage($model, $fieldName)->saveAs(
-                                    $s3['bucket'],
-                                    $this->s3Key($model, $bind, $s3['urlPrefix']),
-                                    $filePath,
-                                );
-                                if (is_file($filePath)) {
-                                    chmod($filePath, $this->settings[$model->alias]['fileMode']);
-                                }
-                            } finally {
-                                umask($currentMask);
-                            }
-                        }
-
-                        if (file_exists($filePath) && is_file($filePath)) {
-                            /**
-                             * afterAttach
-                             */
-                            if (!empty($this->settings[$model->alias]['afterAttach'])) {
-                                $res = $this->_userfunc($model, $this->settings[$model->alias]['afterAttach'], [$filePath]);
-
-                                if (!$res) {
-                                    return false;
-                                }
-                            }
-                        }
-                    }
-
-                    /**
-                     * withObject support
-                     */
-                    if ($this->settings[$model->alias]['withObject'] && empty($tmpData[$key][$modelName][$fieldName]['file_object'])) {
-                        /**
-                         * S3 storage
-                         */
-                        $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
-                        if ($s3Storage) {
-                            $s3 = $this->_s3Settings($bindFields[$fieldName]);
-                            if (empty($s3['bucket'])) {
-                                //__('Validation Error: S3 Parameter Error');
-                                return false;
-                            }
-
-                            $tmpData[$key][$modelName][$fieldName]['file_object'] = base64_encode($this->s3Storage($model, $fieldName)->get(
-                                $s3['bucket'],
-                                $this->s3Key($model, $bind, $s3['urlPrefix']),
-                            ));
-                        }
-                    }
-                } else {
+                if (!array_key_exists($model_id . '.' . $fieldName, $binds)) {
                     $tmpData[$key][$modelName][$fieldName] = null;
+                    continue;
+                }
+                $bind = $binds[$model_id . '.' . $fieldName][$this->settings[$model->alias]['model']];
+                $baseDir = empty($bindFields[$fieldName]['filePath']) ? $this->settings[$model->alias]['filePath'] : $bindFields[$fieldName]['filePath'];
+                if ($baseDir) {
+                    $filePath = $baseDir . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object'])));
+                } else {
+                    $filePath = false;
+                }
+                $bind['file_path'] = $filePath;
+                $bind['bindedModel'] = $this->runtime[$model->alias]['bindedModel']->alias;
+                $tmpData[$key][$modelName][$fieldName] = $bind;
+
+                $restored = $this->_restoreLocalFile($model, $fieldName, $bindFields[$fieldName], $bind, $filePath);
+                if ($restored === null) {
+                    // The database has no contents of the file
+                    continue;
+                }
+                if ($restored === false) {
+                    return false;
+                }
+
+                /**
+                 * withObject support
+                 */
+                if (
+                    $this->settings[$model->alias]['withObject']
+                    && empty($tmpData[$key][$modelName][$fieldName]['file_object'])
+                    && $this->_storageEnabled($model, BindableBehavior::STORAGE_S3)
+                ) {
+                    $fileObject = $this->_fileObjectFromS3($model, $fieldName, $bindFields[$fieldName], $bind);
+                    if ($fileObject === null) {
+                        return false;
+                    }
+                    $tmpData[$key][$modelName][$fieldName]['file_object'] = $fileObject;
                 }
             }
         }
@@ -1127,5 +1028,162 @@ class BindableBehavior extends ModelBehavior
         }
 
         return $data;
+    }
+
+    /**
+     * Returns the bound fields of the model by field name.
+     *
+     * @param Model $model Model using the behavior.
+     * @return array<string, array>
+     */
+    protected function _bindFieldsByName(Model $model)
+    {
+        return Set::combine($model->bindFields, '/field', '/');
+    }
+
+    /**
+     * Returns whether a storage is used: `BindableBehavior::STORAGE_DB` (or the older `dbStorage` setting) or
+     * `BindableBehavior::STORAGE_S3`.
+     *
+     * @param Model $model Model using the behavior.
+     * @param string $storage Storage.
+     * @return bool
+     */
+    protected function _storageEnabled(Model $model, $storage)
+    {
+        $settings = $this->settings[$model->alias];
+        if ($storage === BindableBehavior::STORAGE_DB && isset($settings['dbStorage'])) {
+            // backward compatible
+            return (bool)$settings['dbStorage'];
+        }
+
+        return in_array($storage, (array)$settings['storage']);
+    }
+
+    /**
+     * Restores the local file of an attachment from the database and S3 when it does not exist or is older than the
+     * attachment, and calls afterAttach with the restored file.
+     *
+     * @param Model $model Model using the behavior.
+     * @param string $fieldName Bound field.
+     * @param array $field Settings of the bound field.
+     * @param array $bind File data of the attachment.
+     * @param string|false $filePath Path of the local file, or false without local files.
+     * @return bool|null False when find() must return false, null when the database has no contents of the file.
+     */
+    protected function _restoreLocalFile(Model $model, $fieldName, array $field, array $bind, $filePath)
+    {
+        if (file_exists($filePath) && filemtime($filePath) >= strtotime($bind['modified'])) {
+            return true;
+        }
+        $settings = $this->settings[$model->alias];
+        $restore = $settings['restoreFromStorage'] && $filePath;
+
+        if ($restore && $this->_storageEnabled($model, BindableBehavior::STORAGE_DB)) {
+            $restored = $this->_restoreFromDb($model, $bind, $filePath);
+            if ($restored !== true) {
+                return $restored;
+            }
+        }
+        if ($restore && $this->_storageEnabled($model, BindableBehavior::STORAGE_S3) && !$this->_restoreFromS3($model, $fieldName, $field, $bind, $filePath)) {
+            return false;
+        }
+
+        if (!file_exists($filePath) || !is_file($filePath) || empty($settings['afterAttach'])) {
+            return true;
+        }
+
+        return $this->_userfunc($model, $settings['afterAttach'], [$filePath]) ? true : false;
+    }
+
+    /**
+     * Writes the local file of an attachment from the database.
+     *
+     * @param Model $model Model using the behavior.
+     * @param array $bind File data of the attachment, with `file_object` when withObject is set.
+     * @param string $filePath Path of the local file.
+     * @return bool|null False when the file cannot be written, null when the database has no contents of the file.
+     */
+    protected function _restoreFromDb(Model $model, array $bind, $filePath)
+    {
+        $settings = $this->settings[$model->alias];
+        if ($settings['withObject']) {
+            $fileObject = $bind['file_object'];
+        } else {
+            $all = $this->runtime[$model->alias]['bindedModel']->findById($bind['id']);
+            $fileObject = $all[$settings['model']]['file_object'];
+        }
+        if (!$fileObject) {
+            return null;
+        }
+
+        $currentMask = umask();
+        umask(0);
+        if (!is_dir(dirname($filePath))) {
+            mkdir(dirname($filePath), $settings['dirMode'], true);
+        }
+        if (file_exists($filePath) && is_file($filePath)) {
+            unlink($filePath);
+        }
+        $result = file_put_contents($filePath, base64_decode($fileObject)) && chmod($filePath, $settings['fileMode']);
+        umask($currentMask);
+
+        return $result;
+    }
+
+    /**
+     * Downloads the local file of an attachment from S3.
+     *
+     * @param Model $model Model using the behavior.
+     * @param string $fieldName Bound field.
+     * @param array $field Settings of the bound field.
+     * @param array $bind File data of the attachment.
+     * @param string $filePath Path of the local file.
+     * @return bool False without a bucket.
+     */
+    protected function _restoreFromS3(Model $model, $fieldName, array $field, array $bind, $filePath)
+    {
+        $s3 = $this->_s3Settings($field);
+        if (empty($s3['bucket'])) {
+            //__('Validation Error: S3 Parameter Error');
+            return false;
+        }
+
+        $currentMask = umask();
+        umask(0);
+        try {
+            if (!is_dir(dirname($filePath))) {
+                mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
+            }
+
+            $this->s3Storage($model, $fieldName)->saveAs($s3['bucket'], $this->s3Key($model, $bind, $s3['urlPrefix']), $filePath);
+            if (is_file($filePath)) {
+                chmod($filePath, $this->settings[$model->alias]['fileMode']);
+            }
+        } finally {
+            umask($currentMask);
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns the contents of a file on S3, Base64-encoded, for withObject.
+     *
+     * @param Model $model Model using the behavior.
+     * @param string $fieldName Bound field.
+     * @param array $field Settings of the bound field.
+     * @param array $bind File data of the attachment.
+     * @return string|null Null without a bucket.
+     */
+    protected function _fileObjectFromS3(Model $model, $fieldName, array $field, array $bind)
+    {
+        $s3 = $this->_s3Settings($field);
+        if (empty($s3['bucket'])) {
+            //__('Validation Error: S3 Parameter Error');
+            return null;
+        }
+
+        return base64_encode($this->s3Storage($model, $fieldName)->get($s3['bucket'], $this->s3Key($model, $bind, $s3['urlPrefix'])));
     }
 }
