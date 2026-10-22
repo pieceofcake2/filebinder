@@ -94,6 +94,17 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
 - `funcCheckFile` called the function with a path that does not exist; it now fails
 - Files restored from S3 were world-writable (`0666`); they now get `fileMode`, like the files
   restored from the database
+- The S3 URLs of `LabelHelper` did not point to the files of a model that overrides `transferTo()`;
+  the helper now uses the key of the behavior (`s3Key()`)
+- The results of an associated model, passed to the behavior by its `afterFind()`, got the bound
+  fields of the primary model instead of its own
+- `find()` with a field list without a bound field added all the bound fields
+- A file saved to the record of `Model::$id`, without the ID in the data, was not attached to the
+  record (its attachment kept `model_id` 0) and was not saved
+- `alphaNumericFileName` accepted a file name with a line break, and `checkExtension`,
+  `checkContentType` and the size units accepted a value with a line break at the end
+- `LabelHelper` treated a file whose path had the path of the webroot in the middle as a file under
+  the webroot, and read the webroot path as a regular expression
 - The loader action emitted warnings before the 404 response for a record that does not exist or
   has no file, a deprecation without a `User-Agent` header, and a notice without an output buffer
 - The plugin no longer loads its own `vendor/autoload.php`

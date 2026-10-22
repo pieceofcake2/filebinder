@@ -93,7 +93,7 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
         CakePlugin::unload('AsyncAws');
 
         $this->expectException(FilebinderS3StorageException::class);
-        $this->expectExceptionMessage("The S3 storage of Filebinder requires pieceofcake2/aws or pieceofcake2/async-aws. Install one with: composer require pieceofcake2/aws (or: composer require pieceofcake2/async-aws async-aws/simple-s3), and load it with CakePlugin::load('Aws') (or CakePlugin::load('AsyncAws')).");
+        $this->expectExceptionMessage("The S3 storage of Filebinder requires pieceofcake2/async-aws or pieceofcake2/aws. Install one with: composer require pieceofcake2/async-aws async-aws/simple-s3 (or: composer require pieceofcake2/aws), and load it with CakePlugin::load('AsyncAws') (or CakePlugin::load('Aws')).");
         FilebinderS3StorageFactory::client();
     }
 

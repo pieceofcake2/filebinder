@@ -27,9 +27,9 @@
         "pieceofcake2/phpstan-cakephp2": "^1.0"
     },
     "suggest": {
-        "pieceofcake2/aws": "S3 storage with the AWS SDK for PHP (aws/aws-sdk-php)",
         "pieceofcake2/async-aws": "S3 storage with AsyncAws; also install async-aws/simple-s3",
-        "async-aws/simple-s3": "Required with pieceofcake2/async-aws for the S3 storage (installs async-aws/s3)"
+        "async-aws/simple-s3": "Required with pieceofcake2/async-aws for the S3 storage (installs async-aws/s3)",
+        "pieceofcake2/aws": "S3 storage with the AWS SDK for PHP (aws/aws-sdk-php)"
     },
     "replace": {
         "fusic/filebinder": "*"

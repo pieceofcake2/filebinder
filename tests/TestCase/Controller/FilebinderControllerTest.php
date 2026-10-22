@@ -405,6 +405,120 @@ class FilebinderControllerTest extends CakeTestCase
     }
 
     /**
+     * loader() sends the headers of the file of a record: the file name of the record when the URL has none, its
+     * size and its content type.
+     */
+    public function testLoaderHeaders(): void
+    {
+        $this->_sign('FilebinderPost', '1', 'logo');
+
+        $this->_load('FilebinderPost', '1', 'logo', null);
+
+        $this->assertSame([
+            'Content-Disposition: attachment; filename="logo.png"; filename*=UTF-8\'\'logo.png',
+            'Content-Length: ' . filesize($this->filePath . 'FilebinderPost/1/logo/logo.png'),
+            'Content-Type: image/png',
+            'X-Content-Type-Options: nosniff',
+        ], $this->Controller->sentHeaders);
+    }
+
+    /**
+     * loader() sends an uploaded file with the content type detected from its contents.
+     */
+    public function testLoaderTmpFileHeaders(): void
+    {
+        file_put_contents($this->filePath . 'tmp/ring_20261022_abc_page.png', '<html><body>page</body></html>');
+        $this->_sign('FilebinderPost', '0', 'logo', null, 'ring_20261022_abc_page.png');
+
+        $output = $this->_load('FilebinderPost', '0', 'logo', 'ring_20261022_abc_page.png');
+
+        $this->assertSame('<html><body>page</body></html>', $output);
+        $this->assertSame([
+            'Content-Disposition: attachment; filename="ring_20261022_abc_page.png"; filename*=UTF-8\'\'ring_20261022_abc_page.png',
+            'Content-Length: 30',
+            'Content-Type: text/html',
+            'X-Content-Type-Options: nosniff',
+        ], $this->Controller->sentHeaders);
+    }
+
+    /**
+     * Without a tmpPath, the uploaded files are sent from CACHE.
+     */
+    public function testLoaderTmpFileDefaultTmpPath(): void
+    {
+        ClassRegistry::init('FilebinderPost')->bindFields = [['field' => 'logo', 'filePath' => $this->filePath]];
+        $fileName = 'ring_' . uniqid() . '_logo.png';
+        copy(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', CACHE . $fileName);
+        try {
+            $this->_sign('FilebinderPost', '0', 'logo', null, $fileName);
+
+            $output = $this->_load('FilebinderPost', '0', 'logo', $fileName);
+        } finally {
+            unlink(CACHE . $fileName);
+        }
+
+        $this->assertStringEqualsFile(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', $output);
+    }
+
+    /**
+     * loader() rejects an uploaded file that does not exist.
+     */
+    public function testLoaderTmpFileNotFound(): void
+    {
+        $this->_sign('FilebinderPost', '0', 'logo', null, 'ring_missing.png');
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '0', 'logo', 'ring_missing.png');
+    }
+
+    /**
+     * loader() throws NotFoundException for a record whose file can be neither found nor restored.
+     */
+    public function testLoaderFileNotFound(): void
+    {
+        unlink($this->filePath . 'FilebinderPost/1/logo/logo.png');
+        $this->_sign('FilebinderPost', '1', 'logo', null, 'logo.png');
+
+        try {
+            $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
+            $this->fail('No exception was thrown.');
+        } catch (NotFoundException $e) {
+            $this->assertSame('Invalid access', $e->getMessage());
+        }
+        $this->assertSame([], $this->Controller->sentHeaders);
+    }
+
+    /**
+     * loader() rejects a URL without a model, a model ID or a field.
+     */
+    public function testLoaderMissingParts(): void
+    {
+        foreach ([['', '1', 'logo'], ['FilebinderPost', null, 'logo'], ['FilebinderPost', '1', '']] as [$model, $modelId, $fieldName]) {
+            $this->_sign((string)$model, (string)$modelId, (string)$fieldName, null, 'logo.png');
+            try {
+                $this->Controller->loader($model, $modelId, $fieldName, 'logo.png');
+                $this->fail('No exception was thrown.');
+            } catch (NotFoundException $e) {
+                $this->assertSame('Invalid access', $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * loader() sets the debug level to 0, so that no debug output is added to the file.
+     */
+    public function testLoaderDebug(): void
+    {
+        Configure::write('debug', 2);
+        $this->_sign('FilebinderPost', '1', 'logo', null, 'logo.png');
+
+        $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
+
+        $this->assertSame(0, Configure::read('debug'));
+        $this->assertFalse($this->Controller->autoRender);
+    }
+
+    /**
      * Signs the URL of a file as LabelHelper does.
      *
      * @param string $model Model name.
