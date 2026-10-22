@@ -259,6 +259,8 @@ The behavior adds these validation rules for the file fields:
 
 The Ring component detects the content type (`file_content_type`) from the contents of the file
 with the fileinfo extension; the type sent by the browser, which a user can change, is not used.
+The behavior detects it again when it saves the file, so the stored type is the detected one
+whatever the saved data have (`application/octet-stream` when fileinfo cannot tell).
 The loader sends the files with this type and `X-Content-Type-Options: nosniff`. Use
 `funcCheckFile` to check more of the contents of the file:
 

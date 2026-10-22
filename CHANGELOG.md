@@ -73,7 +73,9 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   sent the files with it, e.g. a PNG file as `text/html`. `RingComponent::bindUp()` now detects it
   from the contents of the file with fileinfo, as for the uploads to S3 (`FilebinderContentType`), so
   the stored `file_content_type`, and what `checkContentType` checks, may differ from before. The
-  loader also sends `X-Content-Type-Options: nosniff`
+  behavior detects it again when it saves the file, so data saved without the Ring component also
+  get the detected type, whatever `file_content_type` they have (`application/octet-stream` when
+  fileinfo cannot tell). The loader also sends `X-Content-Type-Options: nosniff`
 
 ### Fixes
 

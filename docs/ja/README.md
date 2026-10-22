@@ -271,7 +271,9 @@ $this->Post->withObject(true);
 | `['funcCheckFile', 'checkIllegalCode']` | アップロードされたファイルのパスを渡すと、関数またはモデルのメソッドが true を返す。ファイルがなければ失敗します。 |
 
 Ring コンポーネントは、コンテンツタイプ (`file_content_type`) を fileinfo 拡張でファイルの内容から
-判定します。ユーザーが書き換えられる、ブラウザが送ったタイプは使いません。loader はこのタイプと
+判定します。ユーザーが書き換えられる、ブラウザが送ったタイプは使いません。ビヘイビアもファイルを保存する
+ときに判定し直すので、保存するデータの値にかかわらず、判定したタイプが保存されます (fileinfo で判定
+できなければ `application/octet-stream`)。loader はこのタイプと
 `X-Content-Type-Options: nosniff` を付けてファイルを送ります。ファイルの内容をさらに調べるには
 `funcCheckFile` を使います。
 

@@ -168,6 +168,29 @@ class BindableBehaviorTest extends CakeTestCase
     }
 
     /**
+     * save() stores the content type detected from the contents of the file, not the one of the data.
+     */
+    public function testSaveDetectsContentType(): void
+    {
+        copy($this->_testFile(), $this->tmpPath);
+        $this->FilebinderPost->save(['FilebinderPost' => [
+            'title' => 'Title',
+            'logo' => [
+                'model' => 'FilebinderPost',
+                'field_name' => 'logo',
+                'file_name' => 'logo.html',
+                'file_content_type' => 'text/html',
+                'file_size' => 1395,
+                'tmp_bind_path' => $this->tmpPath,
+            ],
+        ]]);
+        $id = $this->FilebinderPost->getLastInsertId();
+
+        $result = $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $id]]);
+        $this->assertSame('image/png', $result['FilebinderPost']['logo']['file_content_type']);
+    }
+
+    /**
      * withObject returns the file contents.
      */
     public function testFindWithObject(): void

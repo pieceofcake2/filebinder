@@ -1,6 +1,7 @@
 <?php
 
 App::uses('FilebinderS3StorageFactory', 'Filebinder.Storage');
+App::uses('FilebinderContentType', 'Filebinder.Lib');
 
 /**
  * Bindable Behavior
@@ -209,6 +210,8 @@ class BindableBehavior extends ModelBehavior
             $bind['model_id'] = 0;
 
             $tmpFile = $value['tmp_bind_path'];
+            // The same type as RingComponent::bindUp(), whatever the data say
+            $bind['file_content_type'] = FilebinderContentType::detect((string)$tmpFile) ?? 'application/octet-stream';
             if (file_exists($tmpFile) && is_file($tmpFile)) {
                 /**
                  * beforeAttach
