@@ -21,8 +21,8 @@ behavior saves the uploaded files.
 - Validation rules for the extension, the content type and the size of the files
 - `Filebinder.Ring` keeps the uploaded files for a confirmation page, and `Filebinder.Label`
   shows them
-- Amazon S3 through [pieceofcake2/aws](https://github.com/pieceofcake2/aws) (AWS SDK for PHP) or
-  [pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) (AsyncAws)
+- Amazon S3 through [pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) (AsyncAws)
+  or [pieceofcake2/aws](https://github.com/pieceofcake2/aws) (AWS SDK for PHP)
 
 ![The attachment table and the path of a saved file](docs/img/filebinder_filepath.png)
 
@@ -31,8 +31,10 @@ behavior saves the uploaded files.
 - Website: https://pieceofcake2.github.io/filebinder/ (日本語: https://pieceofcake2.github.io/filebinder/ja/)
 - Markdown: [docs/README.md](docs/README.md) (日本語: [docs/ja/README.md](docs/ja/README.md)) (for AI tools and offline reading)
 
-It covers the database table, the settings, the validation rules, the helper and the component,
-the S3 storage and the migration from `fusic/filebinder`.
+It covers the database table, the [settings](docs/configuration.md), the [storage](docs/storage.md),
+[Amazon S3](docs/s3.md), the [validation rules](docs/validation.md), the
+[Ring component](docs/ring.md), the [Label helper](docs/label.md) and the
+[upgrade from `fusic/filebinder`](docs/upgrading.md).
 
 The Markdown documentation is also included in the Composer package, in the plugin's directory: `plugins/Filebinder/docs/README.md` (the location depends on your `installer-paths`).
 
@@ -40,7 +42,7 @@ The Markdown documentation is also included in the Composer package, in the plug
 
 * PHP 8.1+
 * pieceofcake2/cakephp 2.12+
-* For the S3 storage: pieceofcake2/aws, or pieceofcake2/async-aws with async-aws/simple-s3
+* For the S3 storage: pieceofcake2/async-aws with async-aws/simple-s3, or pieceofcake2/aws
 
 ## Installation
 
@@ -91,7 +93,7 @@ class PostsController extends AppController
 echo $this->Label->image($post['Post']['image']);
 ```
 
-See [Usage](docs/README.md#usage) and [Amazon S3](docs/README.md#amazon-s3).
+See [Quick Start](docs/README.md#quick-start) and [Amazon S3](docs/s3.md).
 
 ## Contributing
 
