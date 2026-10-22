@@ -69,6 +69,9 @@ class FilebinderController extends FilebinderAppController
             ];
             $query['conditions'] = [$this->{$model}->primaryKey => $model_id];
             $file = $this->{$model}->find('first', $query);
+            if (empty($file[$model][$fieldName]['file_path'])) {
+                throw new NotFoundException(__('Invalid access'));
+            }
 
             if (empty($fileName)) {
                 $fileName = $file[$model][$fieldName]['file_name'];
@@ -80,7 +83,7 @@ class FilebinderController extends FilebinderAppController
         if (!file_exists($filePath)) {
             throw new NotFoundException(__('Invalid access'));
         }
-        if (strstr(env('HTTP_USER_AGENT'), 'MSIE')) {
+        if (str_contains((string)env('HTTP_USER_AGENT'), 'MSIE')) {
             $fileName = mb_convert_encoding($fileName, 'SJIS', 'UTF-8');
             header('Content-Disposition: inline; filename="' . $fileName . '"');
         } else {
@@ -99,7 +102,9 @@ class FilebinderController extends FilebinderAppController
             header('Content-Type: ' . $fileContentType);
         }
 
-        ob_end_clean(); // clean
+        if (ob_get_level() > 0) {
+            ob_end_clean(); // clean
+        }
         readfile($filePath);
     }
 }
