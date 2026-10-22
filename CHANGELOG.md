@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## 2.9.0 - Unreleased
+## 2.9.0 - 2026-10-22
 
 First release of `pieceofcake2/filebinder`, a maintained fork of
 [fusic/filebinder](https://github.com/fusic/filebinder) (2.0 branch). It replaces the
