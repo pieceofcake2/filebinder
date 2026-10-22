@@ -65,6 +65,42 @@ class LabelHelperTest extends CakeTestCase
     }
 
     /**
+     * The public path of a file under the webroot keeps the characters of regular expressions.
+     */
+    public function testMakeSrcRegexCharacters(): void
+    {
+        $file = [
+            'file_path' => WWW_ROOT . 'files/FilebinderPost/1/logo/logo(1)+[#].png',
+            'model' => 'FilebinderPost',
+            'model_id' => '1',
+            'field_name' => 'logo',
+            'file_name' => 'logo(1)+[#].png',
+        ];
+
+        $this->assertSame('/files/FilebinderPost/1/logo/logo(1)+[#].png', $this->Label->_makeSrc($file));
+    }
+
+    /**
+     * A file outside the webroot whose path has the path of the webroot in the middle is sent by the loader.
+     */
+    public function testMakeSrcWebrootInMiddle(): void
+    {
+        $file = [
+            'file_path' => TMP . 'backup' . WWW_ROOT . 'logo.png',
+            'model' => 'FilebinderPost',
+            'model_id' => '1',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+        ];
+
+        $result = $this->Label->_makeSrc($file);
+
+        $this->assertIsArray($result);
+        $this->assertSame('loader', $result['action']);
+        $this->assertSame(['FilebinderPost', '1', 'logo', 'logo.png'], [$result[0], $result[1], $result[2], $result[3]]);
+    }
+
+    /**
      * A file outside the webroot has a signed URL of the loader action.
      */
     public function testMakeSrcLoader(): void

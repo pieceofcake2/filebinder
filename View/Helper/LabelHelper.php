@@ -101,10 +101,9 @@ class LabelHelper extends AppHelper
             return false;
         }
 
-        if (preg_match('#' . WWW_ROOT . '#', $filePath)) {
-            $src = preg_replace('#' . WWW_ROOT . '#', DS, $filePath);
-
-            return $src;
+        // A file under the webroot has its public path
+        if (str_starts_with($filePath, WWW_ROOT)) {
+            return DS . substr($filePath, strlen(WWW_ROOT));
         }
 
         if (!empty($file['tmp_bind_path'])) {

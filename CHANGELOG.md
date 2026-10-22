@@ -103,6 +103,8 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   record (its attachment kept `model_id` 0) and was not saved
 - `alphaNumericFileName` accepted a file name with a line break, and `checkExtension`,
   `checkContentType` and the size units accepted a value with a line break at the end
+- `LabelHelper` treated a file whose path had the path of the webroot in the middle as a file under
+  the webroot, and read the webroot path as a regular expression
 - The loader action emitted warnings before the 404 response for a record that does not exist or
   has no file, a deprecation without a `User-Agent` header, and a notice without an output buffer
 - The plugin no longer loads its own `vendor/autoload.php`
