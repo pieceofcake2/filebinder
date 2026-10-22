@@ -469,8 +469,8 @@ Configure::write('Filebinder.S3', [
 | `Filebinder.S3.region` | 非推奨。プラグインの設定で `region` を指定してください。`region` のないフィールドのリージョンで、プラグインの設定より優先されます。 |
 | `Filebinder.S3.key`、`Filebinder.S3.secret` | 非推奨。プラグインの設定で認証情報を指定するか、デフォルトの認証情報を使ってください。アクセスキーで、プラグインの設定より優先されます。 |
 
-AWS SDK では、ファイルの `Content-Type` は拡張子から決まります。AsyncAws では、ファイルの内容から
-判定します。
+S3 のファイルの `Content-Type` は、ブラウザが送ったタイプや拡張子ではなく、fileinfo 拡張でファイルの
+内容から判定します。
 
 <a id="s3-storage-api"></a>
 
@@ -533,6 +533,8 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 - 小文字の単位のファイルサイズ (`'1mb'`) を、その単位で解釈します。以前はキロバイトとして
   解釈していました。
 - S3 から復元したファイルに `fileMode` を設定します。
+- S3 にアップロードするファイルの `Content-Type` は、ファイルの内容から判定します。以前の AWS SDK では
+  拡張子から決まっていました。
 - Label ヘルパーの S3 の URL (`S3` オプション) は S3 クライアントが作ります。`https` で、設定の
   リージョンやエンドポイントを使います (`http://<bucket>.s3.amazonaws.com/...` ではなく、たとえば
   `https://<bucket>.s3.<region>.amazonaws.com/...`)。`ssl` オプションは使わなくなりました。S3 クライアントの

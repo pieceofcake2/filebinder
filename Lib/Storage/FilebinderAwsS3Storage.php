@@ -5,6 +5,7 @@ use Aws\Sdk;
 
 App::uses('Configure', 'Core');
 App::uses('FilebinderS3StorageInterface', 'Filebinder.Storage');
+App::uses('FilebinderS3ContentTypeTrait', 'Filebinder.Storage');
 
 /**
  * S3 storage with the AWS SDK for PHP of pieceofcake2/aws
@@ -14,6 +15,8 @@ App::uses('FilebinderS3StorageInterface', 'Filebinder.Storage');
  */
 class FilebinderAwsS3Storage implements FilebinderS3StorageInterface
 {
+    use FilebinderS3ContentTypeTrait;
+
     private S3ClientInterface $client;
 
     /**
@@ -53,12 +56,11 @@ class FilebinderAwsS3Storage implements FilebinderS3StorageInterface
      */
     public function put(string $bucket, string $key, string $file, array $options = []): void
     {
-        // The SDK sets the Content-Type from the extension of the file.
         $this->client->putObject([
             'Bucket' => $bucket,
             'Key' => $key,
             'Body' => fopen($file, 'r'),
-        ] + $options);
+        ] + static::withContentType($file, $options));
     }
 
     /**

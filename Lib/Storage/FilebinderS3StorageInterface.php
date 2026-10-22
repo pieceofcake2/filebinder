@@ -10,12 +10,12 @@
 interface FilebinderS3StorageInterface
 {
     /**
-     * Uploads a file.
+     * Uploads a file, with the Content-Type detected from its contents unless the options have `ContentType`.
      *
      * @param string $bucket Bucket.
      * @param string $key Object key.
      * @param string $file Path of the local file.
-     * @param array<string, mixed> $options Options of the upload: `ACL`.
+     * @param array<string, mixed> $options Options of the upload: `ACL`, `ContentType`.
      * @return void
      */
     public function put(string $bucket, string $key, string $file, array $options = []): void;

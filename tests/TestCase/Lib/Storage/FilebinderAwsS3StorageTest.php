@@ -52,7 +52,7 @@ class FilebinderAwsS3StorageTest extends CakeTestCase
     }
 
     /**
-     * put() sends PutObject with the file and the options, and the SDK sets the Content-Type from the extension.
+     * put() sends PutObject with the file, the options and the Content-Type of its contents.
      */
     public function testPut(): void
     {
@@ -67,6 +67,25 @@ class FilebinderAwsS3StorageTest extends CakeTestCase
         $this->assertSame('private', $command['params']['ACL']);
         $this->assertSame('image/png', $command['request']->getHeaderLine('Content-Type'));
         $this->assertSame(file_get_contents($file), (string)$command['request']->getBody());
+    }
+
+    /**
+     * The Content-Type comes from the contents of the file, not from its extension, and a ContentType option
+     * replaces it.
+     */
+    public function testPutContentTypeFromContents(): void
+    {
+        $file = TMP . 'filebinder_png_with_txt_extension.txt';
+        copy(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', $file);
+        try {
+            (new FilebinderAwsS3Storage())->put('my-bucket', 'logo.txt', $file);
+            $this->assertSame('image/png', $this->lastAwsCommand()['request']->getHeaderLine('Content-Type'));
+
+            (new FilebinderAwsS3Storage())->put('my-bucket', 'logo.txt', $file, ['ContentType' => 'application/octet-stream']);
+            $this->assertSame('application/octet-stream', $this->lastAwsCommand()['request']->getHeaderLine('Content-Type'));
+        } finally {
+            unlink($file);
+        }
     }
 
     /**

@@ -441,8 +441,8 @@ Configure::write('Filebinder.S3', [
 | `Filebinder.S3.region` | Deprecated: set `region` in the plugin configuration. Region, for the fields without `region`; overrides the plugin configuration. |
 | `Filebinder.S3.key`, `Filebinder.S3.secret` | Deprecated: set the credentials in the plugin configuration, or use the default credentials. Access key, which overrides the plugin configuration. |
 
-With the AWS SDK, the `Content-Type` of the files is set from their extension. With AsyncAws, it is
-detected from their contents.
+The `Content-Type` of the files on S3 is detected from their contents with the fileinfo extension,
+not from the type sent by the browser or the extension of the file.
 
 ### S3 Storage API
 
@@ -500,6 +500,8 @@ Changes in behavior:
 - `funcCheckFile` fails when the file does not exist, without calling the function.
 - File sizes with a lowercase unit (`'1mb'`) are read as that unit; they were read as kilobytes.
 - Files restored from S3 get `fileMode`.
+- The `Content-Type` of the files uploaded to S3 is detected from their contents; the AWS SDK set it
+  from the extension.
 - The S3 URLs of the Label helper (`S3` option) are built by the S3 client: they use `https` and the
   region or the endpoint of the configuration (e.g. `https://<bucket>.s3.<region>.amazonaws.com/...`
   instead of `http://<bucket>.s3.amazonaws.com/...`), and the `ssl` option is no longer used. They

@@ -42,8 +42,8 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   `Filebinder.S3.urlPrefix`. New `presignedUrl()` in `FilebinderS3StorageInterface`
 - New `s3Storage()` behavior method (`$this->Post->s3Storage('image')`) returns the S3 storage of a
   field, e.g. to get the URL of a file with `url()`
-- With the AsyncAws client, the `Content-Type` of the uploaded files is detected from their
-  contents (the AWS SDK sets it from the extension, as before)
+- The `Content-Type` of the files uploaded to S3 is detected from their contents with fileinfo,
+  with both clients (the AWS SDK set it from the extension of the file before)
 
 ### Security
 

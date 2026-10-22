@@ -6,6 +6,7 @@ App::uses('ComponentCollection', 'Controller');
 App::uses('AsyncAwsComponent', 'AsyncAws.Controller/Component');
 App::uses('S3Storage', 'AsyncAws.Lib');
 App::uses('FilebinderS3StorageInterface', 'Filebinder.Storage');
+App::uses('FilebinderS3ContentTypeTrait', 'Filebinder.Storage');
 
 /**
  * S3 storage with the `S3Storage` helper of pieceofcake2/async-aws (async-aws/simple-s3)
@@ -16,6 +17,8 @@ App::uses('FilebinderS3StorageInterface', 'Filebinder.Storage');
  */
 class FilebinderAsyncAwsS3Storage implements FilebinderS3StorageInterface
 {
+    use FilebinderS3ContentTypeTrait;
+
     private S3Storage $storage;
 
     /**
@@ -57,12 +60,7 @@ class FilebinderAsyncAwsS3Storage implements FilebinderS3StorageInterface
      */
     public function put(string $bucket, string $key, string $file, array $options = []): void
     {
-        if (!isset($options['ContentType'])) {
-            $contentType = static::contentType($file);
-            if ($contentType !== null) {
-                $options['ContentType'] = $contentType;
-            }
-        }
+        $options = static::withContentType($file, $options);
         $stream = fopen($file, 'r');
         try {
             $this->storage->write(static::path($bucket, $key), $stream, $options);
@@ -115,24 +113,6 @@ class FilebinderAsyncAwsS3Storage implements FilebinderS3StorageInterface
     public function presignedUrl(string $bucket, string $key, DateTimeImmutable $expires): string
     {
         return $this->storage->presignedUrl(static::path($bucket, $key), $expires);
-    }
-
-    /**
-     * Returns the Content-Type of a file, detected from its contents with the fileinfo extension.
-     *
-     * AsyncAws does not detect the Content-Type, and S3 serves an object without it as `binary/octet-stream`.
-     *
-     * @param string $file Path of the file.
-     * @return string|null The Content-Type, or null when it cannot be detected.
-     */
-    protected static function contentType(string $file): ?string
-    {
-        if (!function_exists('mime_content_type')) {
-            return null;
-        }
-        $contentType = mime_content_type($file);
-
-        return is_string($contentType) ? $contentType : null;
     }
 
     /**

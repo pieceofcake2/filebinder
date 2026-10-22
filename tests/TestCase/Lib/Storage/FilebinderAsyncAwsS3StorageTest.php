@@ -81,6 +81,25 @@ class FilebinderAsyncAwsS3StorageTest extends CakeTestCase
     }
 
     /**
+     * The Content-Type comes from the contents of the file, not from its extension, and a ContentType option
+     * replaces it.
+     */
+    public function testPutContentTypeFromContents(): void
+    {
+        $file = TMP . 'filebinder_png_with_txt_extension.txt';
+        copy(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', $file);
+        try {
+            (new FilebinderAsyncAwsS3Storage())->put('my-bucket', 'logo.txt', $file);
+            $this->assertSame('image/png', $this->lastAsyncAwsRequest()['headers']['content-type']);
+
+            (new FilebinderAsyncAwsS3Storage())->put('my-bucket', 'logo.txt', $file, ['ContentType' => 'application/octet-stream']);
+            $this->assertSame('application/octet-stream', $this->lastAsyncAwsRequest()['headers']['content-type']);
+        } finally {
+            unlink($file);
+        }
+    }
+
+    /**
      * get() returns the contents of the object.
      */
     public function testGet(): void
