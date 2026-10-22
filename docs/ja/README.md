@@ -158,19 +158,24 @@ echo $this->Form->end(__('Submit'));
 
 ```php
 $this->set('post', $this->Post->findById(1));
-// $post['Post']['image'] = [
-//     'id' => 10,
-//     'model' => 'Post',
-//     'model_id' => 1,
-//     'field_name' => 'image',
-//     'file_name' => 'photo.jpg',
-//     'file_content_type' => 'image/jpeg',
-//     'file_size' => 12345,
-//     'created' => '2026-10-22 10:00:00',
-//     'modified' => '2026-10-22 10:00:00',
-//     'file_path' => '/var/www/html/myapp/webroot/files/Post/1/image/photo.jpg',
-//     'bindedModel' => 'Attachment',
-// ];
+```
+
+このとき `$post['Post']['image']` には次の値が入ります。
+
+```php
+[
+    'id' => 10,
+    'model' => 'Post',
+    'model_id' => 1,
+    'field_name' => 'image',
+    'file_name' => 'photo.jpg',
+    'file_content_type' => 'image/jpeg',
+    'file_size' => 12345,
+    'created' => '2026-10-22 10:00:00',
+    'modified' => '2026-10-22 10:00:00',
+    'file_path' => '/var/www/html/myapp/webroot/files/Post/1/image/photo.jpg',
+    'bindedModel' => 'Attachment',
+]
 ```
 
 ファイルのないレコードでは、フィールドは `null` です。ファイルは Label ヘルパーで表示します。
@@ -416,20 +421,32 @@ public $bindFields = [
 
 ### S3 クライアント
 
-S3 のストレージは、[pieceofcake2/aws](https://github.com/pieceofcake2/aws) の AWS SDK for PHP か、
-[pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) の [AsyncAws](https://async-aws.com)
-を使います。どちらかをインストールして読み込みます。
+S3 のストレージは、[pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) の
+[AsyncAws](https://async-aws.com) か、[pieceofcake2/aws](https://github.com/pieceofcake2/aws) の
+AWS SDK for PHP を使います。どちらかをインストールして読み込みます。
+
+AsyncAws を使う場合は、pieceofcake2/async-aws と async-aws/simple-s3 をインストールします。
 
 ```bash
-composer require pieceofcake2/aws
-# or
 composer require pieceofcake2/async-aws async-aws/simple-s3
 ```
 
+プラグインを読み込みます。
+
+```php
+CakePlugin::load('AsyncAws');
+```
+
+AWS SDK for PHP を使う場合は、pieceofcake2/aws をインストールします。
+
+```bash
+composer require pieceofcake2/aws
+```
+
+プラグインを読み込みます。
+
 ```php
 CakePlugin::load('Aws');
-// or
-CakePlugin::load('AsyncAws');
 ```
 
 読み込んだプラグインのクライアントを使います。両方読み込んだ場合は `AsyncAws` です。

@@ -151,19 +151,24 @@ echo $this->Form->end(__('Submit'));
 
 ```php
 $this->set('post', $this->Post->findById(1));
-// $post['Post']['image'] = [
-//     'id' => 10,
-//     'model' => 'Post',
-//     'model_id' => 1,
-//     'field_name' => 'image',
-//     'file_name' => 'photo.jpg',
-//     'file_content_type' => 'image/jpeg',
-//     'file_size' => 12345,
-//     'created' => '2026-10-22 10:00:00',
-//     'modified' => '2026-10-22 10:00:00',
-//     'file_path' => '/var/www/html/myapp/webroot/files/Post/1/image/photo.jpg',
-//     'bindedModel' => 'Attachment',
-// ];
+```
+
+`$post['Post']['image']` then holds:
+
+```php
+[
+    'id' => 10,
+    'model' => 'Post',
+    'model_id' => 1,
+    'field_name' => 'image',
+    'file_name' => 'photo.jpg',
+    'file_content_type' => 'image/jpeg',
+    'file_size' => 12345,
+    'created' => '2026-10-22 10:00:00',
+    'modified' => '2026-10-22 10:00:00',
+    'file_path' => '/var/www/html/myapp/webroot/files/Post/1/image/photo.jpg',
+    'bindedModel' => 'Attachment',
+]
 ```
 
 The field is `null` when the record has no file. Show the file with the Label helper, which the
@@ -390,20 +395,32 @@ local file does not exist, `find()` downloads it (see `restoreFromStorage`).
 
 ### S3 Client
 
-The S3 storage uses the AWS SDK for PHP of [pieceofcake2/aws](https://github.com/pieceofcake2/aws),
-or [AsyncAws](https://async-aws.com) of
-[pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws). Install and load one of them:
+The S3 storage uses [AsyncAws](https://async-aws.com) of
+[pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws), or the AWS SDK for PHP of
+[pieceofcake2/aws](https://github.com/pieceofcake2/aws). Install and load one of them.
+
+For AsyncAws, install pieceofcake2/async-aws with async-aws/simple-s3:
 
 ```bash
-composer require pieceofcake2/aws
-# or
 composer require pieceofcake2/async-aws async-aws/simple-s3
 ```
 
+Load it:
+
+```php
+CakePlugin::load('AsyncAws');
+```
+
+For the AWS SDK for PHP, install pieceofcake2/aws:
+
+```bash
+composer require pieceofcake2/aws
+```
+
+Load it:
+
 ```php
 CakePlugin::load('Aws');
-// or
-CakePlugin::load('AsyncAws');
 ```
 
 The client of the loaded plugin is used, `AsyncAws` when both are loaded. Choose it with
