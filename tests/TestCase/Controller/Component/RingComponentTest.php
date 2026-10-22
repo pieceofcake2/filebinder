@@ -110,6 +110,25 @@ class RingComponentTest extends CakeTestCase
     }
 
     /**
+     * bindUp() detects the content type from the contents of the file, not from the type sent by the browser.
+     */
+    public function testBindUpContentType(): void
+    {
+        $this->_setUploadedFile([
+            'name' => 'logo.html',
+            'tmp_name' => $this->path . 'bindup.png',
+            'type' => 'text/html',
+            'size' => 100,
+            'error' => 0,
+        ]);
+
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+
+        $this->assertSame('image/png', $this->Controller->request->data['FilebinderPost']['logo']['file_content_type']);
+    }
+
+    /**
      * bindUp() sets null to a field whose upload data has invalid keys.
      */
     public function testBindUpInvalidUploadedFile(): void

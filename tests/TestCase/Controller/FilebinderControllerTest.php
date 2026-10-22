@@ -16,6 +16,21 @@ App::uses('LabelHelper', 'Filebinder.View/Helper');
 class FilebinderTestController extends FilebinderController
 {
     /**
+     * Sent headers
+     *
+     * @var array<string>
+     */
+    public array $sentHeaders = [];
+
+    /**
+     * @inheritDoc
+     */
+    protected function _sendHeader($header): void
+    {
+        $this->sentHeaders[] = $header;
+    }
+
+    /**
      * @inheritDoc
      */
     public static function contentDisposition($fileName, $userAgent): string
@@ -36,7 +51,7 @@ class FilebinderControllerTest extends CakeTestCase
         'plugin.filebinder.filebinder_post',
     ];
 
-    protected FilebinderController $Controller;
+    protected FilebinderTestController $Controller;
 
     /**
      * Directory of the saved files
@@ -73,7 +88,7 @@ class FilebinderControllerTest extends CakeTestCase
         ];
         $this->salt = Configure::read('Security.salt');
         CakeSession::start();
-        $this->Controller = new FilebinderController(new CakeRequest(null, false), new CakeResponse());
+        $this->Controller = new FilebinderTestController(new CakeRequest(null, false), new CakeResponse());
         $this->Controller->constructClasses();
     }
 
@@ -96,6 +111,8 @@ class FilebinderControllerTest extends CakeTestCase
         $output = $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
 
         $this->assertSame(file_get_contents($this->filePath . 'FilebinderPost/1/logo/logo.png'), $output);
+        $this->assertContains('Content-Type: image/png', $this->Controller->sentHeaders);
+        $this->assertContains('X-Content-Type-Options: nosniff', $this->Controller->sentHeaders);
     }
 
     /**

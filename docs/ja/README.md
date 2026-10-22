@@ -262,7 +262,7 @@ $this->Post->withObject(true);
 | ルール | 説明 |
 | --- | --- |
 | `['checkExtension', ['jpg', 'png']]` | ファイル名の拡張子がいずれかに一致する (大文字小文字は区別しない)。文字列も指定できます。 |
-| `['checkContentType', ['image/jpeg', 'image/png']]` | ブラウザが送ったコンテンツタイプがいずれか (正規表現) に一致する。文字列も指定できます。 |
+| `['checkContentType', ['image/jpeg', 'image/png']]` | ファイルのコンテンツタイプ (ファイルの内容から判定) がいずれか (正規表現) に一致する。文字列も指定できます。 |
 | `['checkMaxFileSize', '2MB']` | ファイルがこのサイズ以下。バイト数、または数値に `K`、`M`、`G`、`T` (と省略できる `B`) を付けた値で、大文字でも小文字でもかまいません。 |
 | `['checkMinFileSize', '1KB']` | ファイルがこのサイズ以上。 |
 | `['checkFileSize', '2MB']` | `checkMaxFileSize` と同じ。 |
@@ -270,8 +270,10 @@ $this->Post->withObject(true);
 | `['alphaNumericFileName']` | ファイル名が文字、数字、ドットだけでできている。 |
 | `['funcCheckFile', 'checkIllegalCode']` | アップロードされたファイルのパスを渡すと、関数またはモデルのメソッドが true を返す。ファイルがなければ失敗します。 |
 
-`checkContentType` が調べるのはブラウザが送ったコンテンツタイプで、ユーザーが書き換えられます。
-ファイルの内容を調べるには `funcCheckFile` を使います。
+Ring コンポーネントは、コンテンツタイプ (`file_content_type`) を fileinfo 拡張でファイルの内容から
+判定します。ユーザーが書き換えられる、ブラウザが送ったタイプは使いません。loader はこのタイプと
+`X-Content-Type-Options: nosniff` を付けてファイルを送ります。ファイルの内容をさらに調べるには
+`funcCheckFile` を使います。
 
 ```php
 public $validate = [
@@ -488,8 +490,8 @@ Configure::write('Filebinder.S3', [
 | `Filebinder.S3.region` | 非推奨。プラグインの設定で `region` を指定してください。`region` のないフィールドのリージョンで、プラグインの設定より優先されます。 |
 | `Filebinder.S3.key`、`Filebinder.S3.secret` | 非推奨。プラグインの設定で認証情報を指定するか、デフォルトの認証情報を使ってください。アクセスキーで、プラグインの設定より優先されます。 |
 
-S3 のファイルの `Content-Type` は、ブラウザが送ったタイプや拡張子ではなく、fileinfo 拡張でファイルの
-内容から判定します。
+S3 のファイルの `Content-Type` は、ブラウザが送ったタイプや拡張子ではなく、`file_content_type` と同じく
+fileinfo 拡張でファイルの内容から判定します。
 
 <a id="s3-storage-api"></a>
 
@@ -554,6 +556,9 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 - S3 から復元したファイルに `fileMode` を設定します。
 - S3 にアップロードするファイルの `Content-Type` は、ファイルの内容から判定します。以前の AWS SDK では
   拡張子から決まっていました。
+- `file_content_type` はアップロードされたファイルの内容から判定するので、保存される値と
+  `checkContentType` が調べる値が、ブラウザが送ったタイプと違うことがあります。loader は
+  `X-Content-Type-Options: nosniff` も送ります。
 - Label ヘルパーの S3 の URL (`S3` オプション) は S3 クライアントが作ります。`https` で、設定の
   リージョンやエンドポイントを使います (`http://<bucket>.s3.amazonaws.com/...` ではなく、たとえば
   `https://<bucket>.s3.<region>.amazonaws.com/...`)。`ssl` オプションは使わなくなりました。S3 クライアントの

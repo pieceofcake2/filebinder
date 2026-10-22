@@ -1,5 +1,6 @@
 <?php
 App::uses('Security', 'Utility');
+App::uses('FilebinderContentType', 'Filebinder.Lib');
 
 /**
  * Ring Component
@@ -172,7 +173,8 @@ class RingComponent extends Component
 
             $fileName = $value['name'];
             $tmpFile = $value['tmp_name'];
-            $contentType = $value['type'];
+            // The type sent by the browser can be changed by the user
+            $contentType = FilebinderContentType::detect((string)$tmpFile) ?? 'application/octet-stream';
             $fileSize = filesize($tmpFile);
 
             $tmpPath = empty($bindFields[$fieldName]['tmpPath']) ? CACHE : $bindFields[$fieldName]['tmpPath'];

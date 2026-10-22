@@ -66,6 +66,12 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   backslashes and control characters are removed from the quoted name, and the full name is sent
   in `filename*` (except to MSIE, which gets the Shift_JIS name as before)
 
+- `file_content_type` was the type sent by the browser, which a user can change, and the loader
+  sent the files with it, e.g. a PNG file as `text/html`. `RingComponent::bindUp()` now detects it
+  from the contents of the file with fileinfo, as for the uploads to S3 (`FilebinderContentType`), so
+  the stored `file_content_type`, and what `checkContentType` checks, may differ from before. The
+  loader also sends `X-Content-Type-Options: nosniff`
+
 ### Fixes
 
 - Replacing the file of a field, or deleting it with `delete_<field>`, failed with

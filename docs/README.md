@@ -249,7 +249,7 @@ The behavior adds these validation rules for the file fields:
 | Rule | Description |
 | --- | --- |
 | `['checkExtension', ['jpg', 'png']]` | The file name has one of the extensions (case-insensitive). Also accepts a string. |
-| `['checkContentType', ['image/jpeg', 'image/png']]` | The content type sent by the browser matches one of the types (regular expressions). Also accepts a string. |
+| `['checkContentType', ['image/jpeg', 'image/png']]` | The content type of the file (detected from its contents) matches one of the types (regular expressions). Also accepts a string. |
 | `['checkMaxFileSize', '2MB']` | The file is not larger than the size: bytes, or a number with `K`, `M`, `G` or `T` (and optional `B`), in upper or lower case. |
 | `['checkMinFileSize', '1KB']` | The file is not smaller than the size. |
 | `['checkFileSize', '2MB']` | Same as `checkMaxFileSize`. |
@@ -257,8 +257,10 @@ The behavior adds these validation rules for the file fields:
 | `['alphaNumericFileName']` | The file name has only letters, digits and dots. |
 | `['funcCheckFile', 'checkIllegalCode']` | The function or model method returns true for the path of the uploaded file. Fails when the file does not exist. |
 
-`checkContentType` checks the content type that the browser sends, which a user can change. Use
-`funcCheckFile` to check the contents of the file:
+The Ring component detects the content type (`file_content_type`) from the contents of the file
+with the fileinfo extension; the type sent by the browser, which a user can change, is not used.
+The loader sends the files with this type and `X-Content-Type-Options: nosniff`. Use
+`funcCheckFile` to check more of the contents of the file:
 
 ```php
 public $validate = [
@@ -461,7 +463,7 @@ Configure::write('Filebinder.S3', [
 | `Filebinder.S3.key`, `Filebinder.S3.secret` | Deprecated: set the credentials in the plugin configuration, or use the default credentials. Access key, which overrides the plugin configuration. |
 
 The `Content-Type` of the files on S3 is detected from their contents with the fileinfo extension,
-not from the type sent by the browser or the extension of the file.
+as `file_content_type`, not from the type sent by the browser or the extension of the file.
 
 ### S3 Storage API
 
@@ -521,6 +523,9 @@ Changes in behavior:
 - Files restored from S3 get `fileMode`.
 - The `Content-Type` of the files uploaded to S3 is detected from their contents; the AWS SDK set it
   from the extension.
+- `file_content_type` is detected from the contents of the uploaded file, so the stored value, and
+  what `checkContentType` checks, may differ from the type that the browser sent. The loader also
+  sends `X-Content-Type-Options: nosniff`.
 - The S3 URLs of the Label helper (`S3` option) are built by the S3 client: they use `https` and the
   region or the endpoint of the configuration (e.g. `https://<bucket>.s3.<region>.amazonaws.com/...`
   instead of `http://<bucket>.s3.amazonaws.com/...`), and the `ssl` option is no longer used. They

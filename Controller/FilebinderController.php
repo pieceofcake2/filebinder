@@ -88,24 +88,37 @@ class FilebinderController extends FilebinderAppController
         if (!file_exists($filePath)) {
             throw new NotFoundException(__('Invalid access'));
         }
-        header('Content-Disposition: ' . static::contentDisposition((string)$fileName, (string)env('HTTP_USER_AGENT')));
+        $this->_sendHeader('Content-Disposition: ' . static::contentDisposition((string)$fileName, (string)env('HTTP_USER_AGENT')));
 
-        header('Content-Length: ' . filesize($filePath));
+        $this->_sendHeader('Content-Length: ' . filesize($filePath));
         if (!empty($fileContentType)) {
-            header('Content-Type: ' . $fileContentType);
+            $this->_sendHeader('Content-Type: ' . $fileContentType);
         } elseif (class_exists('FInfo')) {
             $info = new FInfo(FILEINFO_MIME_TYPE);
             $fileContentType = $info->file($filePath);
-            header('Content-Type: ' . $fileContentType);
+            $this->_sendHeader('Content-Type: ' . $fileContentType);
         } elseif (function_exists('mime_content_type')) {
             $fileContentType = mime_content_type($filePath);
-            header('Content-Type: ' . $fileContentType);
+            $this->_sendHeader('Content-Type: ' . $fileContentType);
         }
+        // Browsers must not guess another type, e.g. HTML, from the contents
+        $this->_sendHeader('X-Content-Type-Options: nosniff');
 
         if (ob_get_level() > 0) {
             ob_end_clean(); // clean
         }
         readfile($filePath);
+    }
+
+    /**
+     * Sends a header.
+     *
+     * @param string $header Header line.
+     * @return void
+     */
+    protected function _sendHeader($header)
+    {
+        header($header);
     }
 
     /**
