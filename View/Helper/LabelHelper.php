@@ -1,6 +1,6 @@
 <?php
 App::uses('AppHelper', 'View/Helper');
-App::uses('FilebinderSecret', 'Filebinder.Lib');
+App::uses('FilebinderSignature', 'Filebinder.Lib');
 App::uses('FilebinderS3StorageFactory', 'Filebinder.Storage');
 
 /**
@@ -23,7 +23,7 @@ class LabelHelper extends AppHelper
     /**
      * Settings
      *
-     * - `sessionKey`: Session key of the secret of the loader URLs.
+     * - `sessionKey`: Session key of the plugin (no longer used: the loader URLs are signed with `FilebinderSignature`).
      *
      * @var array
      */
@@ -141,8 +141,7 @@ class LabelHelper extends AppHelper
 
         $expire = $this->_expire();
 
-        $secret = FilebinderSecret::get($this->settings['sessionKey']);
-        $key = Security::hash($file['model'] . $file['model_id'] . $file['field_name'] . $prefix . $file['file_name'] . $secret . $expire);
+        $key = FilebinderSignature::sign((string)$file['model'], (string)$file['model_id'], (string)$file['field_name'], $prefix . $file['file_name'], (string)$expire);
 
         $url = array_merge($url, [
             'plugin' => 'filebinder',

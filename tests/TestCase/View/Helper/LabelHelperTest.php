@@ -3,6 +3,7 @@
 App::uses('View', 'View');
 App::uses('SessionHelper', 'View/Helper');
 App::uses('LabelHelper', 'Filebinder.View/Helper');
+App::uses('FilebinderSignature', 'Filebinder.Lib');
 
 class LabelHelperTest extends CakeTestCase
 {
@@ -22,17 +23,25 @@ class LabelHelperTest extends CakeTestCase
 
     protected LabelHelper $Label;
 
+    /**
+     * Security.salt before the test
+     *
+     * @var mixed
+     */
+    protected $salt;
+
     public function setUp(): void
     {
         parent::setUp();
         $this->View = new View();
         $this->Label = new LabelHelper($this->View);
-        CakeSession::write('Filebinder.secret', 'secret');
+        $this->salt = Configure::read('Security.salt');
+        CakeSession::start();
     }
 
     public function tearDown(): void
     {
-        CakeSession::delete('Filebinder');
+        Configure::write('Security.salt', $this->salt);
         Configure::delete('Filebinder');
         Configure::delete('Aws');
         Configure::delete('AsyncAws');
@@ -80,16 +89,15 @@ class LabelHelperTest extends CakeTestCase
             '1',
             'logo',
             'logo.png',
-            '?' => ['key' => Security::hash('FilebinderPost1logologo.pngsecret' . $expire), 'expire' => $expire],
+            '?' => ['key' => FilebinderSignature::sign('FilebinderPost', '1', 'logo', 'logo.png', (string)$expire), 'expire' => $expire],
         ], $result);
     }
 
     /**
-     * Without a secret in the session, the helper creates one, as RingComponent does.
+     * The helper keeps no secret in the session, and cannot sign a loader URL with an empty Security.salt.
      */
-    public function testMakeSrcCreatesSecret(): void
+    public function testMakeSrcEmptySalt(): void
     {
-        CakeSession::delete('Filebinder');
         $file = [
             'file_path' => TMP . 'files/FilebinderPost/1/logo/logo.png',
             'model' => 'FilebinderPost',
@@ -97,19 +105,13 @@ class LabelHelperTest extends CakeTestCase
             'field_name' => 'logo',
             'file_name' => 'logo.png',
         ];
-
-        $result = $this->Label->_makeSrc($file);
-
-        $secret = CakeSession::read('Filebinder.secret');
-        $this->assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $secret);
-        $this->assertSame(Security::hash('FilebinderPost1logologo.png' . $secret . $result['?']['expire']), $result['?']['key']);
         $this->Label->_makeSrc($file);
-        $this->assertSame($secret, CakeSession::read('Filebinder.secret'));
+        $this->assertNull(CakeSession::read('Filebinder.secret'));
 
-        CakeSession::delete('Filebinder');
-        Configure::write('Filebinder.secret', 'configured secret');
+        Configure::write('Security.salt', '');
+        $this->expectException(CakeException::class);
+        $this->expectExceptionMessage('You cannot sign the URLs of Filebinder with an empty Security.salt.');
         $this->Label->_makeSrc($file);
-        $this->assertSame('configured secret', CakeSession::read('Filebinder.secret'));
     }
 
     /**

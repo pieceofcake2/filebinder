@@ -4,6 +4,7 @@ App::uses('Controller', 'Controller');
 App::uses('AppController', 'Controller');
 App::uses('FilebinderAppController', 'Filebinder.Controller');
 App::uses('FilebinderController', 'Filebinder.Controller');
+App::uses('FilebinderSignature', 'Filebinder.Lib');
 App::uses('Folder', 'Utility');
 App::uses('FilebinderPost', 'Model');
 App::uses('View', 'View');
@@ -47,6 +48,13 @@ class FilebinderControllerTest extends CakeTestCase
      */
     protected int $debug;
 
+    /**
+     * Security.salt before the test
+     *
+     * @var mixed
+     */
+    protected $salt;
+
     public function setUp(): void
     {
         parent::setUp();
@@ -63,7 +71,8 @@ class FilebinderControllerTest extends CakeTestCase
                 'filePath' => $this->filePath,
             ],
         ];
-        CakeSession::write('Filebinder.secret', 'secret');
+        $this->salt = Configure::read('Security.salt');
+        CakeSession::start();
         $this->Controller = new FilebinderController(new CakeRequest(null, false), new CakeResponse());
         $this->Controller->constructClasses();
     }
@@ -71,7 +80,7 @@ class FilebinderControllerTest extends CakeTestCase
     public function tearDown(): void
     {
         Configure::write('debug', $this->debug);
-        CakeSession::delete('Filebinder');
+        Configure::write('Security.salt', $this->salt);
         (new Folder($this->filePath))->delete();
         unset($this->Controller);
         parent::tearDown();
@@ -110,19 +119,53 @@ class FilebinderControllerTest extends CakeTestCase
     }
 
     /**
-     * The URL of a saved record without a file name keeps the key of fusic/filebinder.
+     * The URL of a saved record without a file name has the key of an empty file name.
      */
     public function testLoaderWithoutFileName(): void
     {
-        $expire = strtotime('+1 minute');
-        $this->Controller->request->query = [
-            'key' => Security::hash('FilebinderPost1logosecret' . $expire),
-            'expire' => (string)$expire,
-        ];
+        $this->_sign('FilebinderPost', '1', 'logo');
 
         $output = $this->_load('FilebinderPost', '1', 'logo', null);
 
         $this->assertSame(file_get_contents($this->filePath . 'FilebinderPost/1/logo/logo.png'), $output);
+    }
+
+    /**
+     * loader() rejects the keys of fusic/filebinder, made with Security::hash() and a session secret.
+     */
+    public function testLoaderOldKey(): void
+    {
+        $expire = strtotime('+1 minute');
+        foreach (['FilebinderPost1logosecret' . $expire, 'FilebinderPost1logologo.pngsecret' . $expire] as $string) {
+            $this->Controller->request->query = ['key' => Security::hash($string), 'expire' => (string)$expire];
+            try {
+                $this->_load('FilebinderPost', '1', 'logo', str_contains($string, 'logo.png') ? 'logo.png' : null);
+                $this->fail('The old key was accepted.');
+            } catch (NotFoundException $e) {
+                $this->assertSame('Invalid access', $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Moving characters from one part of the URL to another does not keep the signature.
+     */
+    public function testLoaderMovedParts(): void
+    {
+        $expire = (string)strtotime('+1 minute');
+        $this->assertNotSame(
+            FilebinderSignature::sign('FilebinderPost', '1', 'logo', 'logo.png', $expire),
+            FilebinderSignature::sign('FilebinderPost1', '', 'logo', 'logo.png', $expire),
+        );
+        $this->assertNotSame(
+            FilebinderSignature::sign('a', "b\0c", 'd', '', $expire),
+            FilebinderSignature::sign("a\0b", 'c', 'd', '', $expire),
+        );
+
+        // ID "1" and field "logo" moved to ID "1l" and field "ogo", which concatenate to the same string
+        $this->_sign('FilebinderPost', '1', 'logo', null, 'logo.png');
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '1l', 'ogo', 'logo.png');
     }
 
     /**
@@ -161,19 +204,50 @@ class FilebinderControllerTest extends CakeTestCase
     }
 
     /**
-     * loader() rejects a URL signed without a secret, when the session has none.
+     * loader() rejects a URL that was signed for another session.
      */
-    public function testLoaderWithoutSecret(): void
+    public function testLoaderOtherSession(): void
     {
-        CakeSession::delete('Filebinder');
-        $expire = strtotime('+1 minute');
+        $expire = (string)strtotime('+1 minute');
+        $parts = ['FilebinderPost', '1', 'logo', 'logo.png', $expire, 'other-session-id'];
         $this->Controller->request->query = [
-            'key' => Security::hash('FilebinderPost1logologo.png' . $expire),
-            'expire' => (string)$expire,
+            'key' => hash_hmac('sha256', implode("\0", array_map('rawurlencode', $parts)), (string)Configure::read('Security.salt')),
+            'expire' => $expire,
         ];
 
         $this->expectException(NotFoundException::class);
         $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
+    }
+
+    /**
+     * loader() accepts no key when Security.salt is empty.
+     */
+    public function testLoaderEmptySalt(): void
+    {
+        $expire = (string)strtotime('+1 minute');
+        $parts = ['FilebinderPost', '1', 'logo', 'logo.png', $expire, (string)CakeSession::id()];
+        Configure::write('Security.salt', '');
+        $this->Controller->request->query = [
+            'key' => hash_hmac('sha256', implode("\0", array_map('rawurlencode', $parts)), ''),
+            'expire' => $expire,
+        ];
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
+    }
+
+    /**
+     * The key is the HMAC of the parts and the session ID with Security.salt.
+     */
+    public function testSignature(): void
+    {
+        $this->assertNotSame('', (string)CakeSession::id());
+        $parts = ['FilebinderPost', '1', 'logo', 'logo.png', '1800000000', (string)CakeSession::id()];
+
+        $this->assertSame(
+            hash_hmac('sha256', implode("\0", array_map('rawurlencode', $parts)), (string)Configure::read('Security.salt')),
+            FilebinderSignature::sign('FilebinderPost', '1', 'logo', 'logo.png', '1800000000'),
+        );
     }
 
     /**
@@ -310,7 +384,7 @@ class FilebinderControllerTest extends CakeTestCase
     {
         $expire = $expire ?? strtotime('+1 minute');
         $this->Controller->request->query = [
-            'key' => Security::hash($model . $modelId . $fieldName . $fileName . 'secret' . $expire),
+            'key' => FilebinderSignature::sign($model, $modelId, $fieldName, $fileName, (string)$expire),
             'expire' => (string)$expire,
         ];
     }

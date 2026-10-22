@@ -50,14 +50,18 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
 - The loader action sent any readable file for a tmp URL (model ID `0`) whose file name was
   changed to a path like `../config/database.php`: the file name was not signed. It now accepts
   only a plain base name of a file inside the tmp directory (checked with `realpath()`)
-- The key of the loader URLs now signs the file name, and is compared in constant time. URLs
-  signed before the upgrade with a file name stop working; they expire after `Filebinder.expire`
-  (one minute by default). URLs without a file name keep their key
-- Without `Filebinder.secret`, the secret of the loader URLs was `Security::hash(time())`, which
-  anyone can compute. It is now created with `random_bytes()`
-- The Label helper used without the Ring component signed the loader URLs with an empty secret, so
-  anyone could make them. The helper now creates the secret of the session as the Ring component
-  does, and the loader rejects the URLs when the session has no secret
+- The key of the loader URLs did not sign the file name, and was a SHA-1 of the concatenated parts
+  with a secret kept in the session. Without `Filebinder.secret`, that secret was
+  `Security::hash(time())`, which anyone can compute, and the Label helper used without the Ring
+  component signed with an empty secret, so anyone could make the URLs. The key is now an
+  HMAC-SHA256, with the `Security.salt` of the application, of the model, the ID, the field, the
+  file name, the expiration time and the session ID, compared in constant time (`FilebinderSignature`).
+  A URL works only in the session that rendered it, until it expires; a new session ID (e.g. after
+  a login) invalidates the earlier URLs. Without `Security.salt` or a session, the helper throws a
+  `CakeException` and the loader answers 404. URLs created before the upgrade stop working; they
+  expire after `Filebinder.expire` (one minute by default)
+- `Filebinder.secret` is no longer used and can be removed; the Ring component no longer keeps a
+  secret in the session
 - The file name in the `Content-Disposition` header of the loader was not escaped. Quotes,
   backslashes and control characters are removed from the quoted name, and the full name is sent
   in `filename*` (except to MSIE, which gets the Shift_JIS name as before)

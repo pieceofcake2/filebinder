@@ -318,13 +318,13 @@ The URL depends on where the file is:
 | File | URL |
 | --- | --- |
 | Local file under the webroot | Its path under the webroot, e.g. `/files/Post/1/image/photo.jpg`. Anyone can open it. |
-| Local file outside the webroot, or uploaded file of a confirmation page (in `tmpPath`) | A URL of the `loader` action of the plugin, signed with the secret of the session, that expires after `Filebinder.expire`. |
+| Local file outside the webroot, or uploaded file of a confirmation page (in `tmpPath`) | A URL of the `loader` action of the plugin, signed for the session, that expires after `Filebinder.expire`. |
 | File on S3 (`S3` option) with a public ACL (`public-read`, `public-read-write`) | The URL of the object, as the [S3 client](#s3-client) builds it with its region or endpoint, e.g. `https://<bucket>.s3.<region>.amazonaws.com/<key>`. |
 | File on S3 (`S3` option) with another ACL (e.g. `private`) | A presigned URL of the object, which expires after `Filebinder.expire`. |
 
 The bucket, the ACL, the key prefix and the region of a file on S3 are those of its field in
-`$bindFields` of the model, or of `Filebinder.S3`. The `loader` action and its secret are not used
-for the files on S3.
+`$bindFields` of the model, or of `Filebinder.S3`. The `loader` action is not used for the files on
+S3.
 
 To keep the files on S3 private, set the `acl` of the field (or `Filebinder.S3.acl`) to `private`.
 The helper then outputs presigned URLs, which are short-lived, and S3 checks their signature; the
@@ -335,17 +335,17 @@ files are not sent through the application.
 The `loader` action checks the signature (the `key` parameter) and the expiration time of the URL.
 It does not check whether the user may see the record. The signature stands in for that check: the
 application decides which files a user may see by rendering their URLs with the Label helper, after
-its own authorization in the controller or the view. The URL is signed with the secret of the
-session and an expiration time, so only the URLs that the application rendered for this session
-work, and changing the model, the ID, the field or the file name of a URL gives a 404.
+its own authorization in the controller or the view. The key is an HMAC-SHA256, with the
+`Security.salt` of the application, of the model, the ID, the field, the file name, the expiration
+time and the session ID, so only the URLs that the application rendered for this session work, and
+changing the model, the ID, the field or the file name of a URL gives a 404.
 
 - Do the authorization before you render the link.
-- A signed URL works for anyone who holds it, in that session, until it expires
-  (`Filebinder.expire`, one minute by default, e.g. `'+10 minutes'`).
-- The secret is a random value created for each session by the Ring component or the Label helper.
-  When `Filebinder.secret` is set, the secret is the same for every session, and a URL then works
-  in other sessions too until it expires; leave it unset for a secret per session. Without a
-  secret in the session, the loader answers 404.
+- A URL works only in the session that rendered it, for anyone who holds that session, until it
+  expires (`Filebinder.expire`, one minute by default, e.g. `'+10 minutes'`). A new session ID,
+  e.g. after a login, invalidates the earlier URLs.
+- Keep `Security.salt` secret and set it to a random value. Without `Security.salt` or a session,
+  the Label helper throws a `CakeException` and the loader answers 404.
 - `Filebinder.S3.secret` is a different setting: the (deprecated) secret access key of AWS.
 
 ## Ring Component
@@ -506,12 +506,12 @@ Changes in behavior:
   need an S3 client plugin, and are `null` without a bucket.
 - The S3 URLs of the Label helper use the bucket, `urlPrefix` and region of the field, and are
   presigned when the ACL of the field (or `Filebinder.S3.acl`) is not public, e.g. `private`.
-- The key of the loader URLs signs the file name. Loader URLs created before the upgrade stop
-  working if they have a file name, as the URLs of `LabelHelper` do; they are short-lived
-  (`Filebinder.expire`, one minute by default), so reload the pages that show them.
+- The key of the loader URLs is an HMAC with `Security.salt`, bound to the session and to the file
+  name. Loader URLs created before the upgrade stop working; they are short-lived
+  (`Filebinder.expire`, one minute by default), so reload the pages that show them. A URL works
+  only in the session that rendered it.
 - The loader sends only the files inside the tmp directory for the uploaded files (model ID `0`).
-- Without `Filebinder.secret`, the secret of the loader URLs is random. The Label helper creates it
-  when the Ring component is not used, and the loader answers 404 when the session has no secret.
+- `Filebinder.secret` is no longer used and can be removed from the configuration.
 - The `Content-Disposition` header of the loader has no quotes or control characters in the quoted
   file name, and has the full name in `filename*`.
 

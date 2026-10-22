@@ -1,6 +1,5 @@
 <?php
 App::uses('Security', 'Utility');
-App::uses('FilebinderSecret', 'Filebinder.Lib');
 
 /**
  * Ring Component
@@ -54,7 +53,7 @@ class RingComponent extends Component
     }
 
     /**
-     * Sets the Label helper and the secret of the loader URLs.
+     * Sets the Label helper.
      *
      * @param Controller $controller Controller.
      * @return void
@@ -62,7 +61,6 @@ class RingComponent extends Component
     public function startUp(Controller $controller)
     {
         $controller->helpers['Filebinder.Label'] = ['sessionKey' => self::$sessionKey];
-        FilebinderSecret::get(self::$sessionKey);
     }
 
     /**
