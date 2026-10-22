@@ -898,6 +898,8 @@ class BindableBehaviorTest extends CakeTestCase
         $filePath = $result['FilebinderPost']['logo']['file_path'];
         file_put_contents($filePath, 'outdated');
         touch($filePath, strtotime('2000-01-01 00:00:00'));
+        // As in a new request: PHP < 8.3 keeps the modification time of the first find() in the stat cache
+        clearstatcache();
 
         $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $result['FilebinderPost']['id']]]);
 
@@ -913,6 +915,7 @@ class BindableBehaviorTest extends CakeTestCase
         $filePath = $result['FilebinderPost']['logo']['file_path'];
         file_put_contents($filePath, 'newer');
         touch($filePath, time() + 60);
+        clearstatcache();
 
         $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $result['FilebinderPost']['id']]]);
 
