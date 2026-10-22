@@ -134,6 +134,29 @@ class RingComponentTest extends CakeTestCase
     }
 
     /**
+     * A failed upload, e.g. a file larger than upload_max_filesize, has no file size, so that bindDown() drops it
+     * and Model::save() reports the upload error.
+     */
+    public function testBindUpUploadError(): void
+    {
+        $this->_setUploadedFile([
+            'name' => 'large.png',
+            'type' => '',
+            'tmp_name' => '',
+            'error' => UPLOAD_ERR_INI_SIZE,
+            'size' => 0,
+        ]);
+
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->bindUp();
+
+        $this->assertFalse($this->Controller->request->data['FilebinderPost']['logo']['file_size']);
+        $this->Controller->Ring->bindDown();
+        $this->assertNull($this->Controller->request->data['FilebinderPost']['logo']);
+        $this->assertNull($this->Controller->Session->read('Filebinder.FilebinderPost.logo'));
+    }
+
+    /**
      * The file of the tests is not an uploaded file, so move_uploaded_file() does not move it.
      */
     public function testBindUpMoveUploadedFile(): void
