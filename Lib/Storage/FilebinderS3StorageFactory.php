@@ -71,6 +71,30 @@ class FilebinderS3StorageFactory
     }
 
     /**
+     * Returns the options of the S3 client of a bound field: the deprecated `Filebinder.S3.key` and
+     * `Filebinder.S3.secret` as `credentials`, and the `region` of the field or the deprecated `Filebinder.S3.region`.
+     * They take precedence over the configuration of the plugin.
+     *
+     * @param array $field Settings of the bound field.
+     * @return array<string, mixed>
+     */
+    public static function fieldArgs(array $field = []): array
+    {
+        $args = [];
+        $key = Configure::read('Filebinder.S3.key');
+        $secret = Configure::read('Filebinder.S3.secret');
+        if (!empty($key) && !empty($secret)) {
+            $args['credentials'] = ['key' => $key, 'secret' => $secret];
+        }
+        $region = !empty($field['region']) ? $field['region'] : Configure::read('Filebinder.S3.region');
+        if (!empty($region)) {
+            $args['region'] = $region;
+        }
+
+        return $args;
+    }
+
+    /**
      * Returns the client to use: `Filebinder.S3.client`, or the first client whose plugin is loaded.
      *
      * @return string `Aws` or `AsyncAws`.

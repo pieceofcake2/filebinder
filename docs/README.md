@@ -312,8 +312,7 @@ secret in the session, the loader answers 404.
 | `prefix` | Prefix of the file name, e.g. `thumb_` for a thumbnail saved next to the file. |
 | `noFile` | Returned when there is no file. |
 | `title` | Text of the link of `link()`. Default: the file name. |
-| `S3` (or `s3`) | Return the URL of the file on S3: `http://<Filebinder.S3.bucket>.s3.amazonaws.com/<urlPrefix><model>/<model_id>/<field_name>/<file_name>`. |
-| `ssl` | With `S3`, use `https`. |
+| `S3` (or `s3`) | Return the URL of the file `<urlPrefix><model>/<model_id>/<field_name>/<file_name>` in the bucket `Filebinder.S3.bucket`, as the [S3 client](#s3-client) builds it with its region or endpoint, e.g. `https://<bucket>.s3.<region>.amazonaws.com/<key>`. |
 | `url_prefix` | With `S3`, the prefix of the key. Default: `Filebinder.S3.urlPrefix`. |
 
 The other options are passed to `HtmlHelper::image()`, `link()` or `url()`.
@@ -469,6 +468,10 @@ Changes in behavior:
 - `funcCheckFile` fails when the file does not exist, without calling the function.
 - File sizes with a lowercase unit (`'1mb'`) are read as that unit; they were read as kilobytes.
 - Files restored from S3 get `fileMode`.
+- The S3 URLs of the Label helper (`S3` option) are built by the S3 client: they use `https` and the
+  region or the endpoint of the configuration (e.g. `https://<bucket>.s3.<region>.amazonaws.com/...`
+  instead of `http://<bucket>.s3.amazonaws.com/...`), and the `ssl` option is no longer used. They
+  need an S3 client plugin, and are `null` without `Filebinder.S3.bucket`.
 - The key of the loader URLs signs the file name. Loader URLs created before the upgrade stop
   working if they have a file name, as the URLs of `LabelHelper` do; they are short-lived
   (`Filebinder.expire`, one minute by default), so reload the pages that show them.

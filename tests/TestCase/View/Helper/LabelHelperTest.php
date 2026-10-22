@@ -6,6 +6,8 @@ App::uses('LabelHelper', 'Filebinder.View/Helper');
 
 class LabelHelperTest extends CakeTestCase
 {
+    use MockS3Trait;
+
     protected View $View;
 
     protected LabelHelper $Label;
@@ -22,6 +24,8 @@ class LabelHelperTest extends CakeTestCase
     {
         CakeSession::delete('Filebinder');
         Configure::delete('Filebinder');
+        Configure::delete('Aws');
+        Configure::delete('AsyncAws');
         unset($this->View, $this->Label);
         parent::tearDown();
     }
@@ -129,11 +133,28 @@ class LabelHelperTest extends CakeTestCase
     }
 
     /**
-     * The S3 option returns the URL of the file on S3.
+     * The S3 option returns the URL of the file on S3, as the client builds it.
+     *
+     * @return array<string, array{string, string, string}>
      */
-    public function testMakeS3Url(): void
+    public static function s3Clients(): array
     {
-        Configure::write('Filebinder.S3.bucket', 'my-bucket');
+        return [
+            'Aws' => ['Aws', 'https://my-bucket.s3.ap-northeast-1.amazonaws.com/', 'https://my-bucket.s3.us-west-2.amazonaws.com/'],
+            'AsyncAws' => ['AsyncAws', 'https://my-bucket.s3.ap-northeast-1.amazonaws.com/', 'https://my-bucket.s3.us-west-2.amazonaws.com/'],
+        ];
+    }
+
+    /**
+     * The S3 option returns the URL of the file on S3, as the S3 client builds it.
+     *
+     * @dataProvider s3Clients
+     */
+    public function testMakeS3Url(string $client, string $base, string $legacyRegionBase): void
+    {
+        $this->mockAws();
+        $this->mockAsyncAws();
+        Configure::write('Filebinder.S3', ['client' => $client, 'bucket' => 'my-bucket']);
         $file = [
             'model' => 'FilebinderPost',
             'model_id' => '1',
@@ -141,12 +162,35 @@ class LabelHelperTest extends CakeTestCase
             'file_name' => 'logo.png',
         ];
 
-        $this->assertSame('http://my-bucket.s3.amazonaws.com/FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
-        $this->assertSame('https://my-bucket.s3.amazonaws.com/FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['s3' => true, 'ssl' => true]));
-        $this->assertSame('http://my-bucket.s3.amazonaws.com/files/FilebinderPost/1/logo/thumb_logo.png', $this->Label->_makeSrc($file, ['S3' => true, 'url_prefix' => 'files/', 'prefix' => 'thumb_']));
+        $this->assertSame($base . 'FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
+        $this->assertSame($base . 'FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['s3' => true]));
+        $this->assertSame($base . 'files/FilebinderPost/1/logo/thumb_logo.png', $this->Label->_makeSrc($file, ['S3' => true, 'url_prefix' => 'files/', 'prefix' => 'thumb_']));
 
         Configure::write('Filebinder.S3.urlPrefix', 'prefix/');
-        $this->assertSame('http://my-bucket.s3.amazonaws.com/prefix/FilebinderPost/1/logo/logo.png', $this->Label->_makeS3Url($file, []));
+        $this->assertSame($base . 'prefix/FilebinderPost/1/logo/logo.png', $this->Label->_makeS3Url($file, []));
         $this->assertNull($this->Label->_makeS3Url([], []));
+
+        // The deprecated Filebinder.S3.region takes precedence
+        Configure::write('Filebinder.S3.region', 'us-west-2');
+        $Label = new LabelHelper($this->View);
+        $this->assertSame($legacyRegionBase . 'prefix/FilebinderPost/1/logo/logo.png', $Label->_makeS3Url($file, []));
+
+        Configure::delete('Filebinder.S3.bucket');
+        $this->assertNull($Label->_makeS3Url($file, []));
+    }
+
+    /**
+     * The S3 URLs follow the endpoint of the client configuration.
+     *
+     * @dataProvider s3Clients
+     */
+    public function testMakeS3UrlWithEndpoint(string $client): void
+    {
+        $this->mockAws(['endpoint' => 'https://storage.example.com', 'use_path_style_endpoint' => true]);
+        $this->mockAsyncAws(['endpoint' => 'https://storage.example.com', 'pathStyleEndpoint' => 'true']);
+        Configure::write('Filebinder.S3', ['client' => $client, 'bucket' => 'my-bucket']);
+        $file = ['model' => 'FilebinderPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png'];
+
+        $this->assertSame('https://storage.example.com/my-bucket/FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
     }
 }

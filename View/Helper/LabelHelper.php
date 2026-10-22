@@ -1,6 +1,7 @@
 <?php
 App::uses('AppHelper', 'View/Helper');
 App::uses('FilebinderSecret', 'Filebinder.Lib');
+App::uses('FilebinderS3StorageFactory', 'Filebinder.Storage');
 
 /**
  * Label Helper
@@ -31,10 +32,17 @@ class LabelHelper extends AppHelper
     ];
 
     /**
+     * S3 storage of the S3 URLs, created when it is first used
+     *
+     * @var \FilebinderS3StorageInterface|null
+     */
+    protected $_s3Storage;
+
+    /**
      * Returns an image tag of the file, or `$options['noFile']` when there is no file.
      *
      * @param array|null $file File data of a bound field.
-     * @param array $options Options of `HtmlHelper::image()`, and `noFile`, `prefix`, `S3`, `ssl` and `url_prefix`.
+     * @param array $options Options of `HtmlHelper::image()`, and `noFile`, `prefix`, `S3` and `url_prefix`.
      * @return string
      */
     public function image($file = null, $options = [])
@@ -50,7 +58,7 @@ class LabelHelper extends AppHelper
      * Returns a link to the file, or `$options['noFile']` when there is no file.
      *
      * @param array|null $file File data of a bound field.
-     * @param array $options Options of `HtmlHelper::link()`, and `title`, `noFile`, `prefix`, `S3`, `ssl` and `url_prefix`.
+     * @param array $options Options of `HtmlHelper::link()`, and `title`, `noFile`, `prefix`, `S3` and `url_prefix`.
      * @return string
      */
     public function link($file = null, $options = [])
@@ -69,7 +77,7 @@ class LabelHelper extends AppHelper
      * Returns the URL of the file, or `$options['noFile']` when there is no file.
      *
      * @param array|null $file File data of a bound field.
-     * @param array|bool $options Options of `HtmlHelper::url()`, and `noFile`, `prefix`, `S3`, `ssl` and `url_prefix`.
+     * @param array|bool $options Options of `HtmlHelper::url()`, and `noFile`, `prefix`, `S3` and `url_prefix`.
      * @return string
      */
     public function url($file = null, $options = [])
@@ -86,7 +94,7 @@ class LabelHelper extends AppHelper
      * Returns the source of the file: a path under the webroot, a URL array of the loader action, or an S3 URL.
      *
      * @param array|null $file File data of a bound field.
-     * @param array $options Options: `prefix`, `S3`, `ssl` and `url_prefix`.
+     * @param array $options Options: `prefix`, `S3` and `url_prefix`.
      * @return array|string|false|null
      */
     public function _makeSrc($file = null, $options = []) // phpcs:ignore CakePHP.NamingConventions.ValidFunctionName.PublicWithUnderscore
@@ -151,21 +159,28 @@ class LabelHelper extends AppHelper
     }
 
     /**
-     * Returns the URL of the file on Amazon S3.
+     * Returns the URL of the file on Amazon S3, in the bucket `Filebinder.S3.bucket`, as the S3 client builds it
+     * (`url()` of the S3 storage, with the region or the endpoint of the configuration).
      *
      * @param array|null $file File data of a bound field.
-     * @param array $options Options: `prefix`, `ssl` and `url_prefix`.
-     * @return string|null
+     * @param array $options Options: `prefix` and `url_prefix`.
+     * @return string|null The URL, or null without file data or bucket.
+     * @throws \FilebinderS3StorageException When no S3 client can be used.
      */
     public function _makeS3Url($file, $options) // phpcs:ignore CakePHP.NamingConventions.ValidFunctionName.PublicWithUnderscore
     {
-        if (empty($file['model'])) {
+        $bucket = Configure::read('Filebinder.S3.bucket');
+        if (empty($file['model']) || empty($bucket)) {
             return null;
         }
         $prefix = empty($options['prefix']) ? '' : $options['prefix'];
         $urlPrefix = !empty($options['url_prefix']) ? $options['url_prefix'] : Configure::read('Filebinder.S3.urlPrefix');
-        $http = empty($options['ssl']) ? 'http' : 'https';
+        $key = $urlPrefix . $file['model'] . '/' . $file['model_id'] . '/' . $file['field_name'] . '/' . $prefix . $file['file_name'];
 
-        return $http . '://' . Configure::read('Filebinder.S3.bucket') . '.s3.amazonaws.com/' . $urlPrefix . $file['model'] . '/' . $file['model_id'] . '/' . $file['field_name'] . '/' . $prefix . $file['file_name'];
+        if ($this->_s3Storage === null) {
+            $this->_s3Storage = FilebinderS3StorageFactory::create(FilebinderS3StorageFactory::fieldArgs());
+        }
+
+        return $this->_s3Storage->url($bucket, $key);
     }
 }

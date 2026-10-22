@@ -329,8 +329,7 @@ echo $this->Label->url($post['Post']['image']);
 | `prefix` | ファイル名の接頭辞。たとえば、ファイルの隣に保存したサムネイルの `thumb_`。 |
 | `noFile` | ファイルがないときに返す値。 |
 | `title` | `link()` のリンクのテキスト。デフォルトはファイル名。 |
-| `S3` (または `s3`) | S3 のファイルの URL を返します: `http://<Filebinder.S3.bucket>.s3.amazonaws.com/<urlPrefix><model>/<model_id>/<field_name>/<file_name>`。 |
-| `ssl` | `S3` と一緒に指定すると `https` を使います。 |
+| `S3` (または `s3`) | バケット `Filebinder.S3.bucket` のファイル `<urlPrefix><model>/<model_id>/<field_name>/<file_name>` の URL を返します。URL は [S3 クライアント](#s3-client) がリージョンやエンドポイントに合わせて作ります (例: `https://<bucket>.s3.<region>.amazonaws.com/<key>`)。 |
 | `url_prefix` | `S3` と一緒に指定するキーの接頭辞。デフォルトは `Filebinder.S3.urlPrefix`。 |
 
 ほかのオプションは `HtmlHelper::image()`、`link()`、`url()` に渡します。
@@ -499,6 +498,10 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 - 小文字の単位のファイルサイズ (`'1mb'`) を、その単位で解釈します。以前はキロバイトとして
   解釈していました。
 - S3 から復元したファイルに `fileMode` を設定します。
+- Label ヘルパーの S3 の URL (`S3` オプション) は S3 クライアントが作ります。`https` で、設定の
+  リージョンやエンドポイントを使います (`http://<bucket>.s3.amazonaws.com/...` ではなく、たとえば
+  `https://<bucket>.s3.<region>.amazonaws.com/...`)。`ssl` オプションは使わなくなりました。S3 クライアントの
+  プラグインが必要で、`Filebinder.S3.bucket` がなければ `null` を返します。
 - loader の URL の署名にファイル名を含めます。アップグレード前に作られた、ファイル名のある loader の
   URL (`LabelHelper` の URL はファイル名を含みます) は使えなくなります。URL の有効期限は短い
   (`Filebinder.expire`、デフォルトは 1 分) ので、その URL を表示しているページは再読み込みしてください。

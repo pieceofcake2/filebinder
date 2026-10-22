@@ -30,6 +30,11 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   of the plugin configuration (they were not uploaded to S3 before)
 - The `region` of a bound field is used for all the S3 requests of the field; it was used only to
   get the file for `withObject`
+- The S3 URLs of `LabelHelper` (`S3` option) come from `url()` of the S3 storage, so they follow
+  the region or the endpoint of the client, and use `https`: the URL form may change (e.g.
+  `https://<bucket>.s3.<region>.amazonaws.com/...` instead of `http://<bucket>.s3.amazonaws.com/...`).
+  `urlPrefix` and `url_prefix` work as before; the `ssl` option is no longer used. Without
+  `Filebinder.S3.bucket`, the URL is `null`
 - New `s3Storage()` behavior method (`$this->Post->s3Storage('image')`) returns the S3 storage of a
   field, e.g. to get the URL of a file with `url()`
 - With the AsyncAws client, the `Content-Type` of the uploaded files is detected from their

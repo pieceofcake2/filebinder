@@ -546,30 +546,7 @@ class BindableBehavior extends ModelBehavior
             }
         }
 
-        return FilebinderS3StorageFactory::create($this->_s3ClientArgs($field));
-    }
-
-    /**
-     * Returns the options of the S3 client of a bound field: the deprecated `Filebinder.S3.key` and
-     * `Filebinder.S3.secret` as `credentials`, and the `region` of the field or `Filebinder.S3.region`.
-     *
-     * @param array $field Settings of the bound field.
-     * @return array<string, mixed>
-     */
-    protected function _s3ClientArgs(array $field)
-    {
-        $args = [];
-        $key = Configure::read('Filebinder.S3.key');
-        $secret = Configure::read('Filebinder.S3.secret');
-        if (!empty($key) && !empty($secret)) {
-            $args['credentials'] = ['key' => $key, 'secret' => $secret];
-        }
-        $region = !empty($field['region']) ? $field['region'] : Configure::read('Filebinder.S3.region');
-        if (!empty($region)) {
-            $args['region'] = $region;
-        }
-
-        return $args;
+        return FilebinderS3StorageFactory::create(FilebinderS3StorageFactory::fieldArgs($field));
     }
 
     /**
