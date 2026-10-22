@@ -703,14 +703,17 @@ class BindableBehaviorTest extends CakeTestCase
         ]]));
 
         $found = $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => 401]]);
-        if ($found['FilebinderPost']['logo'] === null) {
-            $this->markTestIncomplete(
-                'Known bug: afterSave() reads the ID of an updated record only from the saved data, not from '
-                . 'Model::$id, so the attachment keeps model_id 0 and the file is not saved.',
-            );
-        }
         $this->assertSame('logo.png', $found['FilebinderPost']['logo']['file_name']);
         $this->assertFileEquals($this->_testFile(), $found['FilebinderPost']['logo']['file_path']);
+        $this->assertSame(0, ClassRegistry::init('Attachment')->find('count', ['conditions' => ['model_id' => 0]]));
+
+        // delete_<field> with Model::$id
+        $this->FilebinderPost->create();
+        $this->FilebinderPost->id = 401;
+        $this->assertNotFalse($this->FilebinderPost->save(['FilebinderPost' => ['delete_logo' => '1']]));
+        $this->assertFileDoesNotExist($found['FilebinderPost']['logo']['file_path']);
+        $found = $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => 401]]);
+        $this->assertNull($found['FilebinderPost']['logo']);
     }
 
     /**

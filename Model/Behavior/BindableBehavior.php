@@ -267,11 +267,15 @@ class BindableBehavior extends ModelBehavior
         if ($created) {
             $model_id = $model->getLastInsertId();
         } else {
-            if (empty($model->bindedData[$modelName][$this->runtime[$model->alias]['primaryKey']])) {
+            // The ID of the saved data, or Model::$id when the data have none
+            $model_id = $model->bindedData[$modelName][$this->runtime[$model->alias]['primaryKey']] ?? null;
+            if (empty($model_id)) {
+                $model_id = $model->id;
+            }
+            if (empty($model_id)) {
                 // SoftDeletable
                 return;
             }
-            $model_id = $model->bindedData[$modelName][$this->runtime[$model->alias]['primaryKey']];
         }
 
         $bindFields = Set::combine($model->bindFields, '/field', '/');
