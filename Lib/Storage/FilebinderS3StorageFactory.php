@@ -11,8 +11,8 @@ App::uses('FilebinderAsyncAwsS3Storage', 'Filebinder.Storage');
  *
  * The S3 client is chosen with `Filebinder.S3.client`:
  *
- * - `'Aws'`: the AWS SDK for PHP with pieceofcake2/aws (`FilebinderAwsS3Storage`)
  * - `'AsyncAws'`: AsyncAws with pieceofcake2/async-aws and async-aws/simple-s3 (`FilebinderAsyncAwsS3Storage`)
+ * - `'Aws'`: the AWS SDK for PHP with pieceofcake2/aws (`FilebinderAwsS3Storage`)
  *
  * When it is not set, the client of the plugin that is loaded is used, `AsyncAws` when both are loaded. The plugin of
  * the client must be loaded.
@@ -151,9 +151,9 @@ class FilebinderS3StorageFactory
             }
         }
         throw new FilebinderS3StorageException(
-            'The S3 storage of Filebinder requires pieceofcake2/aws or pieceofcake2/async-aws. ' .
-            'Install one with: composer require pieceofcake2/aws (or: composer require pieceofcake2/async-aws ' .
-            'async-aws/simple-s3), and load it with CakePlugin::load(\'Aws\') (or CakePlugin::load(\'AsyncAws\')).',
+            'The S3 storage of Filebinder requires pieceofcake2/async-aws or pieceofcake2/aws. ' .
+            'Install one with: composer require pieceofcake2/async-aws async-aws/simple-s3 (or: composer require ' .
+            'pieceofcake2/aws), and load it with CakePlugin::load(\'AsyncAws\') (or CakePlugin::load(\'Aws\')).',
         );
     }
 
