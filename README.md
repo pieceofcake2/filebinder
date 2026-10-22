@@ -1,219 +1,108 @@
-# Filebinder: Simple file attachment plugin for CakePHP
+# Filebinder Plugin
 
-![Image](https://raw.github.com/fusic/filebinder/2.0/Document/filebinder.png)
+[![GitHub License](https://img.shields.io/github/license/pieceofcake2/filebinder?label=License)](LICENSE)
+[![Packagist Version](https://img.shields.io/packagist/v/pieceofcake2/filebinder?label=Packagist)](https://packagist.org/packages/pieceofcake2/filebinder)
+![PHP](https://img.shields.io/packagist/dependency-v/pieceofcake2/filebinder/php?logo=php&logoColor=%23FFFFFF&label=PHP&labelColor=%23777BB4&color=%23FFFFFF)
+![CakePHP](https://img.shields.io/packagist/dependency-v/pieceofcake2/filebinder/pieceofcake2/cakephp?logo=cakephp&logoColor=%23FFFFFF&label=CakePHP&labelColor=%23D33C43&color=%23FFFFFF)
+[![PHPStan](https://img.shields.io/badge/PHPStan-level%205-brightgreen?label=PHPStan)](https://github.com/pieceofcake2/filebinder/actions/workflows/CI.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/pieceofcake2/filebinder/CI.yml?label=CI)](https://github.com/pieceofcake2/filebinder/actions/workflows/CI.yml)
+[![Codecov](https://img.shields.io/codecov/c/gh/pieceofcake2/filebinder?label=Coverage)](https://codecov.io/gh/pieceofcake2/filebinder)
 
-[![Build Status](https://travis-ci.org/fusic/filebinder.png?branch=2.0)](https://travis-ci.org/fusic/filebinder)
+Simple file attachment for the models of [pieceofcake2/cakephp](https://github.com/pieceofcake2/cakephp)
+applications. List the file fields of a model in `$bindFields`, and the `Filebinder.Bindable`
+behavior saves the uploaded files.
 
-## Feature
+- Simple settings: no column for the files in the tables of your models
+- Several file fields per model, in any number of models
+- Files saved in a local directory, in the database and/or on Amazon S3, and restored from the
+  database or S3 when the local file is missing
+- Validation rules for the extension, the content type and the size of the files
+- `Filebinder.Ring` keeps the uploaded files for a confirmation page, and `Filebinder.Label`
+  shows them
+- Amazon S3 through [pieceofcake2/aws](https://github.com/pieceofcake2/aws) (AWS SDK for PHP) or
+  [pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) (AsyncAws)
 
-- Simple settings
-- Compatible with Transition Component
-- Multi attachement
-- Selectalble file store method (DB storage or not)
+![The attachment table and the path of a saved file](docs/img/filebinder_filepath.png)
+
+## Documentation
+
+- Website: https://pieceofcake2.github.io/filebinder/ (日本語: https://pieceofcake2.github.io/filebinder/ja/)
+- Markdown: [docs/README.md](docs/README.md) (日本語: [docs/ja/README.md](docs/ja/README.md)) (for AI tools and offline reading)
+
+It covers the database table, the settings, the validation rules, the helper and the component,
+the S3 storage and the migration from `fusic/filebinder`.
+
+The Markdown documentation is also included in the Composer package, in the plugin's directory: `plugins/Filebinder/docs/README.md` (the location depends on your `installer-paths`).
 
 ## Requirements
 
-- PHP >= 5.2.6
-- CakePHP >= 2.0
+* PHP 8.1+
+* pieceofcake2/cakephp 2.12+
+* For the S3 storage: pieceofcake2/aws, or pieceofcake2/async-aws with async-aws/simple-s3
 
 ## Installation
 
-Put 'Filebinder' directory on app/plugins in your CakePHP application.
-Then, add the following code in bootstrap.php
+```bash
+composer require pieceofcake2/filebinder
+```
 
-    <?php
-        CakePlugin::load('Filebinder');
+Load the plugin in `config/bootstrap.php` (legacy layout: `app/Config/bootstrap.php`):
 
-## Filebinder outline image
+```php
+CakePlugin::load('Filebinder');
+```
 
-Filebinder manage 'virtual table' and entity.
-
-### 'Simple attachment' model image
-
-![Image](https://raw.github.com/fusic/filebinder/2.0/Document/filebinder_image.png)
-
-### 'Multi fields' model image
-
-![Image](https://raw.github.com/fusic/filebinder/2.0/Document/filebinder_multi_fields.png)
-
-### 'Multi models' model image
-
-![Image](https://raw.github.com/fusic/filebinder/2.0/Document/filebinder_multi_models.png)
-
-### Entity file path image
-
-![Image](https://raw.github.com/fusic/filebinder/2.0/Document/filebinder_filepath.png)
+Then create the `attachments` table. See [Installation](docs/README.md#installation) and
+[Database](docs/README.md#database).
 
 ## Usage
 
-Example of how to add image file with confirm page.
+```php
+class Post extends AppModel
+{
+    public $actsAs = ['Filebinder.Bindable'];
 
-    <?php
-    class Post extends AppModel {
-       public $name = 'Post';
-       public $actsAs = array('Filebinder.Bindable');
-       public $displayField = 'title';
-          
-       public $bindFields = array(array('field' => 'image',
-                                     'tmpPath' => '/var/www/html/myapp/app/webroot/files/cache/',
-                                     'filePath' => '/var/www/html/myapp/app/webroot/files/',
-                                     ));
-          
-       public $validate = array('title' => array('notempty'),
-                             'image' => array('allowExtention' => array('rule' => array('checkExtension', array('jpg')),
-                                                                       'allowEmpty' => true),
-                                              'illegalCode' => array('rule' => array('funcCheckFile', 'checkIllegalCode'),
-                                                                    'allowEmpty' => true))
-                             );
-    
-       /**
-        * checkIllegalCode
-        * check include illegal code
-        *
-        * @param $filePath
-        * @return
-        */
-       public function checkIllegalCode($filePath){
-           $fp = fopen($filePath, "r");
-           $ofile = fread($fp, filesize($filePath));
-           fclose($fp);
-    
-           if (preg_match('/<\\?php./i', $ofile)) {
-               return false;
-           }
-           return true;
-       }
-     }
+    public $bindFields = [
+        ['field' => 'image', 'filePath' => WWW_ROOT . 'files' . DS],
+    ];
+}
+```
 
-Create attachment table.
+```php
+class PostsController extends AppController
+{
+    public $components = ['Session', 'Filebinder.Ring'];
 
-    CREATE TABLE `attachments` (
-     `id` int(11) NOT NULL AUTO_INCREMENT,
-     `model` text NOT NULL,
-     `model_id` int(11) NOT NULL,
-     `field_name` text NOT NULL,
-     `file_name` text NOT NULL,
-     `file_content_type` text NOT NULL,
-     `file_size` int(11) NOT NULL,
-     `file_object` longtext,
-     `created` datetime DEFAULT NULL,
-     `modified` datetime DEFAULT NULL,
-     PRIMARY KEY (`id`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
-    <?php
-    class PostsController extends AppController {
-     
-        public $name = 'Posts';
-        public $components = array('Session', 'Filebinder.Ring', 'Transition');
-     
-        /**
-         * add
-         */
-        public function add() {
+    public function add()
+    {
+        if ($this->request->is('post')) {
             $this->Ring->bindUp();
-            $this->Transition->checkData('add_confirm');
-            $this->Transition->clearData();
-        }
-     
-        /**
-         * add_confirm
-         */
-        public function add_confirm(){
-            $this->Transition->checkPrev(array('add'));
-     
-            $this->Transition->automate('add_success',
-                                        false,
-                                        'add');
-            $mergedData = $this->Transition->mergedData();
-            $this->set('mergedData', $mergedData);
-        }
-     
-        /**
-         * add_success
-         */
-        public function add_success(){
-            $this->Transition->checkPrev(array('add',
-                                               'add_confirm'));
-            $mergedData = $this->Transition->mergedData();
-     
-            if ($this->Post->save($mergedData)) {
-                $this->Transition->clearData();
-                $this->Session->setFlash(sprintf(__('The %s has been saved', true), 'post'));
-                $this->redirect(array('action' => 'index'));
-            } else {
-                $this->Session->setFlash(sprintf(__('The %s could not be saved. Please, try again.', true), 'post'));
-                $this->redirect(array('action' => 'add'));
+            if ($this->Post->save($this->request->data)) {
+                return $this->redirect(['action' => 'index']);
             }
         }
     }
+}
+```
 
- add.ctp
+```php
+echo $this->Label->image($post['Post']['image']);
+```
 
-    <div class="posts form">
-      <h2><?php printf(__('Add %s', true), __('Post', true)); ?></h2>
-      <?php echo $this->Form->create('Post', array('action' => 'add', 'type' => 'file'));?>
-      <?php echo $this->Form->input('title', array('type' => 'text'));?>
-      <?php echo $this->Form->input('body');?>
-      <?php echo $this->Form->input('image', array('type' => 'file'));?>
-      <?php echo $this->Form->submit(__('Submit', true));?>
-      <?php echo $this->Form->end();?>
-    </div>
+See [Usage](docs/README.md#usage) and [Amazon S3](docs/README.md#amazon-s3).
 
- add_confirm.ctp
+## Contributing
 
-    <div class="posts form">
-      <h2><?php printf(__('Confirm %s', true), __('Post', true)); ?></h2>
-      
-      <?php echo h($mergedData['Post']['title']);?>
-      <?php echo h($mergedData['Post']['body']);?>
-      <?php echo $this->Label->image($mergedData['Post']['image']);?> 
-      <?php echo $this->Form->create('Post', array('action' => 'add_confirm'));?>   
-      <?php echo $this->Form->input('dummy', array('type' => 'hidden'));?>
-      <?php echo $this->Form->submit(__('Submit', true));?>
-      <?php echo $this->Form->end();?>
-    </div>
+See the [contribution guidelines](https://github.com/pieceofcake2/.github/blob/master/CONTRIBUTING.md).
 
+## Origin
 
-## Amazon S3 combination
-
-### Requirements
-
-- aws-sdk 1.5.*
-
-### Setting
-
-
-    <?php
-    Configure::write('Filebinder.S3.key', '************************');
-    Configure::write('Filebinder.S3.secret', '********************************************');
-    Configure::write('Filebinder.S3.region', 'ap-northeast-1');
-
-
-    <?php
-    class Post extends AppModel {
-        public $name = 'Post';
-        public $actsAs = array('Filebinder.Bindable' => array('storage' => array('Db', 'S3'))); // using Database and Amazon S3 for object storage
-        public $displayField = 'title';
-           
-        public $bindFields = array(array(
-                                  'field' => 'image',
-                                  'tmpPath' => '/var/www/html/myapp/app/webroot/files/cache/',
-                                  'filePath' => '/var/www/html/myapp/app/webroot/files/',
-                                  'bucket' => 'aws.foobacket', // bucket name,
-                                  // 'acl' => AmazonS3::ACL_PUBLIC, // S3 ACL
-                                  ));
-    }
-
+This package is a maintained fork of [fusic/filebinder](https://github.com/fusic/filebinder)
+(2.0 branch, `fusic/filebinder` on Packagist), originally by Fusic Co., Ltd. It is maintained for
+CakePHP 2 on modern PHP by [pieceofcake2](https://github.com/pieceofcake2). Changes from the
+original are listed in the [CHANGELOG](CHANGELOG.md) and the
+[commit history since the fork](https://github.com/pieceofcake2/filebinder/compare/aa14aec...2.x).
 
 ## License
 
-The MIT License
-
-Copyright (c) 2010-2011 Fusic Co., Ltd. (http://fusic.co.jp)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+MIT License. See [LICENSE](LICENSE).
