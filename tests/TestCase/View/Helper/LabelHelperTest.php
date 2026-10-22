@@ -382,6 +382,28 @@ class LabelHelperTest extends CakeTestCase
     }
 
     /**
+     * The S3 URLs of a model that overrides transferTo() have the key of its files on S3.
+     *
+     * @dataProvider s3Clients
+     */
+    public function testMakeS3UrlCustomTransferTo(string $client, string $base): void
+    {
+        $this->mockAws();
+        $this->mockAsyncAws();
+        Configure::write('Filebinder.S3', ['client' => $client, 'bucket' => 'my-bucket', 'urlPrefix' => 'files/']);
+        ClassRegistry::init('FilebinderCustomPathPost')->bindFields = [['field' => 'logo']];
+        $file = ['model' => 'FilebinderCustomPathPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png'];
+
+        $this->assertSame($base . 'files/custom/1/logo-logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
+        $this->assertSame($base . 'other/custom/1/logo-thumb_logo.png', $this->Label->_makeSrc($file, ['S3' => true, 'url_prefix' => 'other/', 'prefix' => 'thumb_']));
+
+        Configure::write('Filebinder.S3.acl', 'private');
+        $url = $this->Label->_makeSrc($file, ['S3' => true]);
+        $this->assertStringStartsWith($base . 'files/custom/1/logo-logo.png?', $url);
+        $this->assertArrayHasKey('X-Amz-Signature', $this->_query($url));
+    }
+
+    /**
      * Returns the query parameters of a URL.
      *
      * @param string $url URL.

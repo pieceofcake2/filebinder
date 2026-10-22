@@ -7,6 +7,8 @@ use Symfony\Component\HttpClient\Response\MockResponse;
 
 App::uses('Folder', 'Utility');
 App::uses('FilebinderPost', 'Model');
+App::uses('View', 'View');
+App::uses('LabelHelper', 'Filebinder.View/Helper');
 
 /**
  * The S3 storage of the Bindable behavior, with mocked S3 clients
@@ -402,6 +404,64 @@ class BindableBehaviorS3Test extends CakeTestCase
             ['DeleteObject', 'my-bucket', 'FilebinderPost/' . $id . '/logo/logo.png'],
             ['DeleteObject', 'image-bucket', 'images/FilebinderPost/' . $id . '/image/image.png'],
         ], $deleted);
+    }
+
+    /**
+     * The S3 clients.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function s3Clients(): array
+    {
+        return ['Aws' => ['Aws'], 'AsyncAws' => ['AsyncAws']];
+    }
+
+    /**
+     * A model that overrides transferTo() saves, restores and deletes its files on S3 with the key of the URLs of
+     * LabelHelper.
+     *
+     * @dataProvider s3Clients
+     */
+    public function testCustomTransferTo(string $client): void
+    {
+        Configure::write('Filebinder.S3', ['client' => $client, 'acl' => 'public-read']);
+        $Post = ClassRegistry::init('FilebinderCustomPathPost');
+        $Post->setSettings(['storage' => BindableBehavior::STORAGE_S3]);
+        $Post->bindFields = [['field' => 'logo', 'filePath' => $this->filePath, 'bucket' => 'my-bucket', 'urlPrefix' => 'files/']];
+        copy($this->_testFile(), $this->tmpPath);
+        $Post->create();
+        $this->assertNotFalse($Post->save(['FilebinderCustomPathPost' => [
+            'title' => 'Title',
+            'logo' => [
+                'model' => 'FilebinderCustomPathPost',
+                'field_name' => 'logo',
+                'file_name' => 'logo.png',
+                'file_size' => 1395,
+                'tmp_bind_path' => $this->tmpPath,
+            ],
+        ]]));
+        $id = $Post->getLastInsertId();
+        $key = 'files/custom/' . $id . '/logo-logo.png';
+        $result = $Post->find('first', ['conditions' => ['FilebinderCustomPathPost.id' => $id]]);
+        $this->assertSame($this->filePath . 'custom/' . $id . '/logo-logo.png', $result['FilebinderCustomPathPost']['logo']['file_path']);
+
+        $Label = new LabelHelper(new View());
+        $url = $Label->url($result['FilebinderCustomPathPost']['logo'], ['S3' => true]);
+        $this->assertSame('/' . $key, parse_url($url, PHP_URL_PATH));
+
+        unlink($result['FilebinderCustomPathPost']['logo']['file_path']);
+        $this->asyncAwsResponses[] = new MockResponse('restored');
+        $Post->find('first', ['conditions' => ['FilebinderCustomPathPost.id' => $id]]);
+        $this->asyncAwsResponses[] = new MockResponse('', ['http_code' => 204]);
+        $Post->delete($id);
+
+        if ($client === 'Aws') {
+            $keys = array_map(fn($command) => [$command['command'], $command['params']['Key']], $this->awsCommands);
+            $this->assertSame([['PutObject', $key], ['GetObject', $key], ['DeleteObject', $key]], $keys);
+        } else {
+            $requests = array_map(fn($request) => [$request['method'], parse_url($request['url'], PHP_URL_PATH)], $this->asyncAwsRequests);
+            $this->assertSame([['PUT', '/' . $key], ['GET', '/' . $key], ['DELETE', '/' . $key]], $requests);
+        }
     }
 
     /**

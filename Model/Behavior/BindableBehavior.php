@@ -361,7 +361,7 @@ class BindableBehavior extends ModelBehavior
                     try {
                         $this->s3Storage($model, $fieldName)->put(
                             $s3['bucket'],
-                            $s3['urlPrefix'] . $model->transferTo(array_diff_key(['model_id' => $model_id] + $value, Set::normalize(['tmp_bind_path']))),
+                            $this->s3Key($model, ['model_id' => $model_id] + $value, $s3['urlPrefix']),
                             $tmpFile,
                             ['ACL' => $s3['acl']],
                         );
@@ -438,6 +438,21 @@ class BindableBehavior extends ModelBehavior
     }
 
     /**
+     * Returns the key of a file on S3: the URL prefix and the path of `transferTo()`, so that a model that overrides
+     * `transferTo()` gets the same key when the file is saved, restored, deleted and shown by `LabelHelper`.
+     *
+     * @param Model $model Model using the behavior.
+     * @param array $data File data of a bound field, as for `transferTo()`. `tmp_bind_path` and `file_object` are
+     *   not passed to `transferTo()`.
+     * @param string|null $urlPrefix Prefix of the key, e.g. the `urlPrefix` of the field.
+     * @return string
+     */
+    public function s3Key(Model $model, array $data, $urlPrefix = '')
+    {
+        return $urlPrefix . $model->transferTo(array_diff_key($data, Set::normalize(['tmp_bind_path', 'file_object'])));
+    }
+
+    /**
      * Deletes the attachments and the files of a record.
      *
      * @param Model $model Model using the behavior.
@@ -477,7 +492,7 @@ class BindableBehavior extends ModelBehavior
 
                     $this->s3Storage($model, $fieldName)->delete(
                         $s3['bucket'],
-                        $s3['urlPrefix'] . $model->transferTo($deleteFields[$fieldName]),
+                        $this->s3Key($model, $deleteFields[$fieldName], $s3['urlPrefix']),
                     );
                 }
 
@@ -1035,7 +1050,7 @@ class BindableBehavior extends ModelBehavior
 
                                 $this->s3Storage($model, $fieldName)->saveAs(
                                     $s3['bucket'],
-                                    $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
+                                    $this->s3Key($model, $bind, $s3['urlPrefix']),
                                     $filePath,
                                 );
                                 if (is_file($filePath)) {
@@ -1077,7 +1092,7 @@ class BindableBehavior extends ModelBehavior
 
                             $tmpData[$key][$modelName][$fieldName]['file_object'] = base64_encode($this->s3Storage($model, $fieldName)->get(
                                 $s3['bucket'],
-                                $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
+                                $this->s3Key($model, $bind, $s3['urlPrefix']),
                             ));
                         }
                     }

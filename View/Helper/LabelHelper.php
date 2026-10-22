@@ -170,8 +170,15 @@ class LabelHelper extends AppHelper
             return null;
         }
         $prefix = empty($options['prefix']) ? '' : $options['prefix'];
-        $urlPrefix = !empty($options['url_prefix']) ? $options['url_prefix'] : $s3['urlPrefix'];
-        $key = $urlPrefix . $file['model'] . '/' . $file['model_id'] . '/' . $file['field_name'] . '/' . $prefix . $file['file_name'];
+        $urlPrefix = (string)(!empty($options['url_prefix']) ? $options['url_prefix'] : $s3['urlPrefix']);
+        $data = ['file_name' => $prefix . $file['file_name']] + $file;
+        $model = $this->_model($file);
+        if ($model !== null && $model->Behaviors->loaded('Bindable')) {
+            // The key of the behavior, also for a model that overrides transferTo()
+            $key = $model->s3Key($data, $urlPrefix);
+        } else {
+            $key = $urlPrefix . $file['model'] . '/' . $file['model_id'] . '/' . $file['field_name'] . '/' . $data['file_name'];
+        }
 
         $args = FilebinderS3StorageFactory::fieldArgs($field);
         $cacheKey = (string)json_encode($args);
@@ -195,19 +202,11 @@ class LabelHelper extends AppHelper
      */
     protected function _bindField(array $file)
     {
-        $name = $file['model'];
-        if (empty($file['field_name']) || !is_string($name)) {
+        if (empty($file['field_name'])) {
             return [];
         }
-        if (!ClassRegistry::isKeySet($name)) {
-            // Do not create a model for a name that has no model class
-            App::uses($name, 'Model');
-            if (!class_exists($name)) {
-                return [];
-            }
-        }
-        $model = ClassRegistry::init($name);
-        if (!$model instanceof Model) {
+        $model = $this->_model($file);
+        if ($model === null) {
             return [];
         }
         foreach ((array)$model->bindFields as $bindField) {
@@ -217,6 +216,30 @@ class LabelHelper extends AppHelper
         }
 
         return [];
+    }
+
+    /**
+     * Returns the model of the file data, or null when the name has no model class.
+     *
+     * @param array $file File data of a bound field.
+     * @return Model|null
+     */
+    protected function _model(array $file)
+    {
+        $name = $file['model'] ?? null;
+        if (!is_string($name) || $name === '') {
+            return null;
+        }
+        if (!ClassRegistry::isKeySet($name)) {
+            // Do not create a model for a name that has no model class
+            App::uses($name, 'Model');
+            if (!class_exists($name)) {
+                return null;
+            }
+        }
+        $model = ClassRegistry::init($name);
+
+        return $model instanceof Model ? $model : null;
     }
 
     /**
