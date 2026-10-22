@@ -162,6 +162,105 @@ class LabelHelperTest extends CakeTestCase
     }
 
     /**
+     * The loader URL of a file of a prefixed page (e.g. admin) has no routing prefix.
+     */
+    public function testMakeSrcLoaderRoutingPrefixes(): void
+    {
+        $prefixes = Configure::read('Routing.prefixes');
+        $admin = Configure::read('Routing.admin');
+        $file = [
+            'file_path' => TMP . 'files/FilebinderPost/1/logo/logo.png',
+            'model' => 'FilebinderPost',
+            'model_id' => '1',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+        ];
+        try {
+            Configure::write('Routing.prefixes', ['admin', 'manager']);
+            $result = $this->Label->_makeSrc($file);
+            $this->assertFalse($result['admin']);
+            $this->assertFalse($result['manager']);
+            $this->assertSame('loader', $result['action']);
+
+            // The Routing.admin setting of CakePHP 1.2
+            Configure::write('Routing.prefixes', null);
+            Configure::write('Routing.admin', 'admin');
+            $result = $this->Label->_makeSrc($file);
+            $this->assertFalse($result['admin']);
+            $this->assertArrayNotHasKey('manager', $result);
+        } finally {
+            Configure::write('Routing.prefixes', $prefixes);
+            Configure::write('Routing.admin', $admin);
+        }
+    }
+
+    /**
+     * The loader URL of an uploaded file, not saved yet, has the model ID 0 and the name of the uploaded file.
+     */
+    public function testMakeSrcTmpFile(): void
+    {
+        $file = [
+            'model' => 'FilebinderPost',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+            'tmp_bind_path' => CACHE . 'ring_20261022_abc_logo.png',
+        ];
+
+        $result = $this->Label->_makeSrc($file, ['prefix' => 'thumb_']);
+
+        $this->assertSame(['FilebinderPost', 0, 'logo', 'thumb_ring_20261022_abc_logo.png'], [$result[0], $result[1], $result[2], $result[3]]);
+        $this->assertSame(FilebinderSignature::sign('FilebinderPost', '0', 'logo', 'thumb_ring_20261022_abc_logo.png', (string)$result['?']['expire']), $result['?']['key']);
+    }
+
+    /**
+     * image(), link() and url() of a file outside the webroot have the signed URL of the loader action.
+     */
+    public function testImageLinkUrlLoader(): void
+    {
+        $file = [
+            'file_path' => TMP . 'files/FilebinderPost/1/logo/logo.png',
+            'model' => 'FilebinderPost',
+            'model_id' => '1',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+        ];
+        // The same expiration time, and key, for each URL
+        Configure::write('Filebinder.expire', '2100-01-01 00:00:00');
+        $src = $this->Label->_makeSrc($file);
+        $this->assertSame(strtotime('2100-01-01 00:00:00'), $src['?']['expire']);
+        $url = Router::url($src);
+        $this->assertStringStartsWith('/filebinder/filebinder/loader/FilebinderPost/1/logo/logo.png?key=', $url);
+
+        // url() escapes the URL for HTML, as HtmlHelper::url()
+        $this->assertSame(h($url), $this->Label->url($file));
+        $this->assertSame('<img src="' . h($url) . '" alt="Logo"/>', $this->Label->image($file, ['alt' => 'Logo']));
+        $this->assertSame('<a href="' . h($url) . '" class="file">logo.png</a>', $this->Label->link($file, ['class' => 'file']));
+    }
+
+    /**
+     * image() returns noFile when there is no file.
+     */
+    public function testImageNoFile(): void
+    {
+        $this->assertSame('No image', $this->Label->image(null, ['noFile' => 'No image']));
+        $this->assertSame('', $this->Label->link(['model' => 'FilebinderPost']));
+        $this->assertSame('', $this->Label->url(['file_path' => '', 'tmp_bind_path' => '']));
+    }
+
+    /**
+     * The S3 option without file data or bucket gives noFile.
+     */
+    public function testS3NoFile(): void
+    {
+        $this->mockAws();
+        Configure::write('Filebinder.S3', ['client' => 'Aws']);
+        $file = ['model' => 'FilebinderPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png'];
+
+        $this->assertSame('No file', $this->Label->url($file, ['S3' => true, 'noFile' => 'No file']));
+        $this->assertSame('', $this->Label->image(null, ['S3' => true]));
+    }
+
+    /**
      * The S3 option returns the URL of the file on S3, as the client builds it.
      *
      * @return array<string, array{string, string, string}>
