@@ -65,7 +65,7 @@ class RingComponent extends Component
             if (Configure::read('Filebinder.secret')) {
                 $this->Session->write(self::$sessionKey . '.secret', Configure::read('Filebinder.secret'));
             } else {
-                $this->Session->write(self::$sessionKey . '.secret', Security::hash((string)time()));
+                $this->Session->write(self::$sessionKey . '.secret', bin2hex(random_bytes(32)));
             }
         }
     }

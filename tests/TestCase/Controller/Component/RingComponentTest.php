@@ -78,6 +78,30 @@ class RingComponentTest extends CakeTestCase
     }
 
     /**
+     * Without Filebinder.secret, startup() creates a random secret for each session.
+     */
+    public function testStartupRandomSecret(): void
+    {
+        $this->Controller->Components->init($this->Controller);
+        $this->Controller->Ring->startup($this->Controller);
+        $secret = $this->Controller->Session->read('Filebinder.secret');
+
+        $this->Controller->Session->delete('Filebinder');
+        $this->Controller->Ring->startup($this->Controller);
+        $secret2 = $this->Controller->Session->read('Filebinder.secret');
+
+        $this->assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $secret);
+        $this->assertNotSame($secret, $secret2);
+        foreach (range(time() - 5, time() + 5) as $time) {
+            $this->assertNotSame(Security::hash((string)$time), $secret);
+        }
+
+        // The secret of the session is kept
+        $this->Controller->Ring->startup($this->Controller);
+        $this->assertSame($secret2, $this->Controller->Session->read('Filebinder.secret'));
+    }
+
+    /**
      * startup() uses Filebinder.secret as the secret.
      */
     public function testStartupSecret(): void
