@@ -620,7 +620,7 @@ class BindableBehavior extends ModelBehavior
         $fileName = $file['file_name'];
 
         // alphaNumeric + .
-        if (!preg_match('/^[\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}\p{Nd}.]+$/mu', $fileName)) {
+        if (!preg_match('/\A[\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}\p{Nd}.]+\z/u', $fileName)) {
             return false;
         }
 
@@ -650,7 +650,7 @@ class BindableBehavior extends ModelBehavior
 
         $tmpFilePath = empty($file['tmp_bind_path']) ? $file['file_path'] : $file['tmp_bind_path'];
 
-        $regexp = '/\.(' . implode('|', (array)$extension) . ')$/i';
+        $regexp = '/\.(' . implode('|', (array)$extension) . ')\z/i';
         if (!preg_match($regexp, $tmpFilePath)) {
             return false;
         }
@@ -678,7 +678,7 @@ class BindableBehavior extends ModelBehavior
 
         $contentType = $file['file_content_type'];
 
-        $regexp = '#^(' . implode('|', (array)$mimeType) . ')$#';
+        $regexp = '#\A(' . implode('|', (array)$mimeType) . ')\z#';
         if (!preg_match($regexp, $contentType)) {
             return false;
         }
@@ -818,7 +818,7 @@ class BindableBehavior extends ModelBehavior
 
         if (is_numeric($size)) {
             return $size;
-        } elseif (is_string($size) && preg_match('/^([0-9]+(?:\.[0-9]+)?)(' . implode('|', $units) . ')B?$/i', $size, $matches)) {
+        } elseif (is_string($size) && preg_match('/\A([0-9]+(?:\.[0-9]+)?)(' . implode('|', $units) . ')B?\z/i', $size, $matches)) {
             $number = str_contains($matches[1], '.') ? (float)$matches[1] : (int)$matches[1];
 
             return $number * pow($byte, (int)array_search(strtoupper($matches[2]), $units, true) + 1);

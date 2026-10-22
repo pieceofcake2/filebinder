@@ -81,13 +81,20 @@ class BindableBehaviorValidationTest extends CakeTestCase
             $this->assertFalse($this->FilebinderPost->alphaNumericFileName(['logo' => ['file_name' => $fileName]]), $fileName);
         }
 
-        if ($this->FilebinderPost->alphaNumericFileName(['logo' => ['file_name' => "logo.png\n<script>.php"]])) {
-            $this->markTestIncomplete(
-                'Known bug: alphaNumericFileName uses the m modifier with ^ and $, so a file name with a line '
-                . 'break passes when one of its lines has only letters, digits and dots.',
-            );
+        // A line break does not end the name
+        foreach (["logo.png\n<script>.php", "<script>\nlogo.png", "logo\n.png", "logo.png\n"] as $fileName) {
+            $this->assertFalse($this->FilebinderPost->alphaNumericFileName(['logo' => ['file_name' => $fileName]]), json_encode($fileName));
         }
-        $this->assertFalse($this->FilebinderPost->alphaNumericFileName(['logo' => ['file_name' => "logo\n.png"]]));
+    }
+
+    /**
+     * A line break at the end does not end the extension, the content type or the size.
+     */
+    public function testTrailingLineBreak(): void
+    {
+        $this->assertFalse($this->FilebinderPost->checkExtension(['logo' => ['tmp_bind_path' => "/tmp/ring_logo.png\n"]], 'png'));
+        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => "image/png\n"]], 'image/png'));
+        $this->assertFalse($this->FilebinderPost->Behaviors->Bindable->calcFileSizeUnit("1MB\n"));
     }
 
     /**
