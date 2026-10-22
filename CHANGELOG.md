@@ -4,26 +4,26 @@
 
 First release of `pieceofcake2/filebinder`, a maintained fork of
 [fusic/filebinder](https://github.com/fusic/filebinder) (2.0 branch). It replaces the
-`fusic/filebinder` package. See [Migrating from fusic/filebinder](docs/README.md#migrating-from-fusic-filebinder).
+`fusic/filebinder` package. See [Upgrading from fusic/filebinder](docs/upgrading.md).
 
 ### Requirements
 
 - Requires PHP 8.1+ and pieceofcake2/cakephp 2.12+
 - The AWS SDK for PHP is no longer required. The S3 storage needs
-  [pieceofcake2/aws](https://github.com/pieceofcake2/aws) or
-  [pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) with `async-aws/simple-s3`
+  [pieceofcake2/async-aws](https://github.com/pieceofcake2/async-aws) with `async-aws/simple-s3` or
+  [pieceofcake2/aws](https://github.com/pieceofcake2/aws)
 
 ### S3 storage
 
-- The S3 storage goes through `FilebinderS3StorageInterface`, with `FilebinderAwsS3Storage` (the AWS
-  SDK for PHP of pieceofcake2/aws) and `FilebinderAsyncAwsS3Storage` (AsyncAws of
-  pieceofcake2/async-aws)
-- New `Filebinder.S3.client` setting (`'Aws'` or `'AsyncAws'`). When it is not set, the client of
+- The S3 storage goes through `FilebinderS3StorageInterface`, with `FilebinderAsyncAwsS3Storage`
+  (AsyncAws of pieceofcake2/async-aws) and `FilebinderAwsS3Storage` (the AWS SDK for PHP of
+  pieceofcake2/aws)
+- New `Filebinder.S3.client` setting (`'AsyncAws'` or `'Aws'`). When it is not set, the client of
   the loaded plugin is used, `AsyncAws` when both are loaded. The plugin must be loaded, also when the
   AWS SDK for PHP is installed: without it, saving to S3 throws a `FilebinderS3StorageException` that
   names the package to install and load (it returned `false` before, without uploading)
-- The S3 clients are configured with the `Aws` configuration of pieceofcake2/aws, or the
-  `AsyncAws` configuration of pieceofcake2/async-aws, so the credentials can come from the
+- The S3 clients are configured with the `AsyncAws` configuration of pieceofcake2/async-aws, or
+  the `Aws` configuration of pieceofcake2/aws, so the credentials can come from the
   environment, an IAM role, etc. `Filebinder.S3.key`, `Filebinder.S3.secret` and
   `Filebinder.S3.region` are deprecated but still work and take precedence. Without
   `Filebinder.S3.key` and `Filebinder.S3.secret`, the files are now uploaded with the credentials
