@@ -9,6 +9,13 @@ App::uses('FilebinderPost', 'Model');
 class BindableBehaviorValidationTest extends CakeTestCase
 {
     /**
+     * Content type of the uploaded file
+     *
+     * @var string
+     */
+    private const PNG = 'image/png';
+
+    /**
      * Fixtures
      *
      * @var array
@@ -35,7 +42,7 @@ class BindableBehaviorValidationTest extends CakeTestCase
         parent::setUp();
         $this->filePath = TMP . 'tests' . DS . 'filebinder' . DS;
         $this->tmpPath = $this->filePath . 'ring_logo.png';
-        new Folder($this->filePath, true);
+        (new Folder())->create($this->filePath);
         copy(CakePlugin::path('Filebinder') . 'tests' . DS . 'File' . DS . 'test.png', $this->tmpPath);
         $this->FilebinderPost = ClassRegistry::init('FilebinderPost');
         $this->FilebinderPost->bindFields = [
@@ -60,7 +67,7 @@ class BindableBehaviorValidationTest extends CakeTestCase
             $label = var_export($value, true);
             $this->assertFalse($this->FilebinderPost->alphaNumericFileName($data), $label);
             $this->assertFalse($this->FilebinderPost->checkExtension($data, 'png'), $label);
-            $this->assertFalse($this->FilebinderPost->checkContentType($data, 'image/png'), $label);
+            $this->assertFalse($this->FilebinderPost->checkContentType($data, self::PNG), $label);
             $this->assertFalse($this->FilebinderPost->checkMaxFileSize($data, '1MB'), $label);
             $this->assertFalse($this->FilebinderPost->checkMinFileSize($data, 1), $label);
             $this->assertFalse($this->FilebinderPost->checkFileSize($data, '1MB'), $label);
@@ -93,7 +100,7 @@ class BindableBehaviorValidationTest extends CakeTestCase
     public function testTrailingLineBreak(): void
     {
         $this->assertFalse($this->FilebinderPost->checkExtension(['logo' => ['tmp_bind_path' => "/tmp/ring_logo.png\n"]], 'png'));
-        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => "image/png\n"]], 'image/png'));
+        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => self::PNG . "\n"]], self::PNG));
         $this->assertFalse($this->FilebinderPost->Behaviors->Bindable->calcFileSizeUnit("1MB\n"));
     }
 
@@ -117,13 +124,13 @@ class BindableBehaviorValidationTest extends CakeTestCase
      */
     public function testCheckContentTypePatterns(): void
     {
-        $data = ['logo' => ['file_content_type' => 'image/png']];
+        $data = ['logo' => ['file_content_type' => self::PNG]];
 
         $this->assertTrue($this->FilebinderPost->checkContentType($data, 'image/.+'));
         $this->assertTrue($this->FilebinderPost->checkContentType($data, ['text/plain', 'image/(png|gif)']));
         $this->assertFalse($this->FilebinderPost->checkContentType($data, 'image'));
-        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => 'text/html; image/png']], 'image/png'));
-        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => 'image/png+html']], 'image/png'));
+        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => 'text/html; ' . self::PNG]], self::PNG));
+        $this->assertFalse($this->FilebinderPost->checkContentType(['logo' => ['file_content_type' => self::PNG . '+html']], self::PNG));
     }
 
     /**
@@ -179,7 +186,7 @@ class BindableBehaviorValidationTest extends CakeTestCase
                 'notEmpty' => ['rule' => ['notEmptyFile']],
                 'fileName' => ['rule' => ['alphaNumericFileName']],
                 'extension' => ['rule' => ['checkExtension', ['png', 'gif']]],
-                'contentType' => ['rule' => ['checkContentType', ['image/png', 'image/gif']]],
+                'contentType' => ['rule' => ['checkContentType', [self::PNG, 'image/gif']]],
                 'maxFileSize' => ['rule' => ['checkMaxFileSize', '1KB']],
                 'minFileSize' => ['rule' => ['checkMinFileSize', '1KB']],
                 'func' => ['rule' => ['funcCheckFile', 'recordPath']],
@@ -189,7 +196,7 @@ class BindableBehaviorValidationTest extends CakeTestCase
             'model' => 'FilebinderPost',
             'field_name' => 'logo',
             'file_name' => 'logo.png',
-            'file_content_type' => 'image/png',
+            'file_content_type' => self::PNG,
             'file_size' => 1024,
             'tmp_bind_path' => $this->tmpPath,
         ];
