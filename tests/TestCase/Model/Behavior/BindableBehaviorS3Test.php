@@ -45,6 +45,8 @@ class BindableBehaviorS3Test extends CakeTestCase
         new Folder($this->filePath, true);
         $this->mockAws();
         $this->mockAsyncAws();
+        // Most tests use the AWS SDK; AsyncAws is the default when both plugins are loaded
+        Configure::write('Filebinder.S3.client', 'Aws');
         $this->FilebinderPost = ClassRegistry::init('FilebinderPost');
         $this->FilebinderPost->setSettings(['storage' => [BindableBehavior::STORAGE_DB, BindableBehavior::STORAGE_S3]]);
         $this->FilebinderPost->bindFields = [
@@ -94,7 +96,7 @@ class BindableBehaviorS3Test extends CakeTestCase
      */
     public function testSaveS3WithConfiguredSettings(): void
     {
-        Configure::write('Filebinder.S3', ['bucket' => 'configured-bucket', 'urlPrefix' => 'files/']);
+        Configure::write('Filebinder.S3', ['client' => 'Aws', 'bucket' => 'configured-bucket', 'urlPrefix' => 'files/']);
         unset($this->FilebinderPost->bindFields[0]['bucket'], $this->FilebinderPost->bindFields[0]['acl']);
 
         $id = $this->_saveLogo()['FilebinderPost']['id'];
@@ -157,7 +159,7 @@ class BindableBehaviorS3Test extends CakeTestCase
      */
     public function testDeprecatedCredentials(): void
     {
-        Configure::write('Filebinder.S3', ['key' => 'legacy-key', 'secret' => 'legacy-secret', 'region' => 'us-west-2']);
+        Configure::write('Filebinder.S3', ['client' => 'Aws', 'key' => 'legacy-key', 'secret' => 'legacy-secret', 'region' => 'us-west-2']);
 
         $this->_saveLogo();
 

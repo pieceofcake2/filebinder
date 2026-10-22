@@ -374,7 +374,7 @@ CakePlugin::load('Aws');
 CakePlugin::load('AsyncAws');
 ```
 
-The client of the loaded plugin is used, `Aws` when both are loaded. Choose it with
+The client of the loaded plugin is used, `AsyncAws` when both are loaded. Choose it with
 `Filebinder.S3.client`:
 
 ```php

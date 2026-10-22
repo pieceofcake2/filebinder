@@ -397,7 +397,7 @@ CakePlugin::load('Aws');
 CakePlugin::load('AsyncAws');
 ```
 
-読み込んだプラグインのクライアントを使います。両方読み込んだ場合は `Aws` です。
+読み込んだプラグインのクライアントを使います。両方読み込んだ場合は `AsyncAws` です。
 `Filebinder.S3.client` で選ぶこともできます。
 
 ```php

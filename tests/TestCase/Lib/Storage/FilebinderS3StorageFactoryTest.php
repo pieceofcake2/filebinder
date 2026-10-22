@@ -54,16 +54,27 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
     }
 
     /**
-     * Aws is used when both plugins are loaded.
+     * AsyncAws is used when both plugins are loaded.
      */
     public function testBothPluginsLoaded(): void
     {
+        $this->assertSame('AsyncAws', FilebinderS3StorageFactory::client());
+        $this->assertInstanceOf(FilebinderAsyncAwsS3Storage::class, FilebinderS3StorageFactory::create());
+    }
+
+    /**
+     * Aws is used when only its plugin is loaded.
+     */
+    public function testAwsPluginLoaded(): void
+    {
+        CakePlugin::unload('AsyncAws');
+
         $this->assertSame('Aws', FilebinderS3StorageFactory::client());
         $this->assertInstanceOf(FilebinderAwsS3Storage::class, FilebinderS3StorageFactory::create());
     }
 
     /**
-     * AsyncAws is used when only its plugin is loaded, also when the AWS SDK is installed.
+     * AsyncAws is used when only its plugin is loaded.
      */
     public function testAsyncAwsPluginLoaded(): void
     {
@@ -143,8 +154,6 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
      */
     public function testAsyncAwsPluginLoadedWithoutSimpleS3(): void
     {
-        CakePlugin::unload('Aws');
-
         $this->expectException(FilebinderS3StorageException::class);
         $this->expectExceptionMessage('requires async-aws/simple-s3');
         FilebinderS3StorageFactoryWithoutClients::client();
@@ -158,7 +167,7 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
         Configure::write('Filebinder.S3.client', 'Minio');
 
         $this->expectException(FilebinderS3StorageException::class);
-        $this->expectExceptionMessage('Filebinder.S3.client must be "Aws" or "AsyncAws", not "Minio".');
+        $this->expectExceptionMessage('Filebinder.S3.client must be "AsyncAws" or "Aws", not "Minio".');
         FilebinderS3StorageFactory::client();
     }
 
@@ -167,6 +176,7 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
      */
     public function testCreateWithArgs(): void
     {
+        Configure::write('Filebinder.S3.client', 'Aws');
         $storage = FilebinderS3StorageFactory::create(['region' => 'eu-west-1']);
 
         $this->assertInstanceOf(FilebinderAwsS3Storage::class, $storage);

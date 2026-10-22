@@ -14,7 +14,7 @@ App::uses('FilebinderAsyncAwsS3Storage', 'Filebinder.Storage');
  * - `'Aws'`: the AWS SDK for PHP with pieceofcake2/aws (`FilebinderAwsS3Storage`)
  * - `'AsyncAws'`: AsyncAws with pieceofcake2/async-aws and async-aws/simple-s3 (`FilebinderAsyncAwsS3Storage`)
  *
- * When it is not set, the client of the plugin that is loaded is used, `Aws` when both are loaded. The plugin of
+ * When it is not set, the client of the plugin that is loaded is used, `AsyncAws` when both are loaded. The plugin of
  * the client must be loaded.
  */
 class FilebinderS3StorageFactory
@@ -40,19 +40,19 @@ class FilebinderS3StorageFactory
      * @var array<string, array{storage: string, plugin: string, package: string, class: string, classPackage: string}>
      */
     private const CLIENTS = [
-        self::CLIENT_AWS => [
-            'storage' => FilebinderAwsS3Storage::class,
-            'plugin' => 'Aws',
-            'package' => 'pieceofcake2/aws',
-            'class' => 'Aws\S3\S3Client',
-            'classPackage' => 'aws/aws-sdk-php',
-        ],
         self::CLIENT_ASYNC_AWS => [
             'storage' => FilebinderAsyncAwsS3Storage::class,
             'plugin' => 'AsyncAws',
             'package' => 'pieceofcake2/async-aws',
             'class' => 'AsyncAws\SimpleS3\SimpleS3Client',
             'classPackage' => 'async-aws/simple-s3',
+        ],
+        self::CLIENT_AWS => [
+            'storage' => FilebinderAwsS3Storage::class,
+            'plugin' => 'Aws',
+            'package' => 'pieceofcake2/aws',
+            'class' => 'Aws\S3\S3Client',
+            'classPackage' => 'aws/aws-sdk-php',
         ],
     ];
 
