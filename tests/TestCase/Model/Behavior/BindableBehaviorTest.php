@@ -430,6 +430,25 @@ class BindableBehaviorTest extends CakeTestCase
     }
 
     /**
+     * calcFileSizeUnit() converts the units K, M, G and T, in upper or lower case, with or without B.
+     */
+    public function testCalcFileSizeUnit(): void
+    {
+        $Bindable = $this->FilebinderPost->Behaviors->Bindable;
+        $this->assertSame(100, $Bindable->calcFileSizeUnit(100));
+        $this->assertSame('100', $Bindable->calcFileSizeUnit('100'));
+        $this->assertSame(102400, $Bindable->calcFileSizeUnit('100KB'));
+        $this->assertSame(102400, $Bindable->calcFileSizeUnit('100K'));
+        $this->assertSame(1048576, $Bindable->calcFileSizeUnit('1MB'));
+        $this->assertSame(1048576, $Bindable->calcFileSizeUnit('1mb'));
+        $this->assertSame(1572864.0, $Bindable->calcFileSizeUnit('1.5M'));
+        $this->assertSame(2147483648, $Bindable->calcFileSizeUnit('2gb'));
+        $this->assertSame(1099511627776, $Bindable->calcFileSizeUnit('1T'));
+        $this->assertFalse($Bindable->calcFileSizeUnit('1PB'));
+        $this->assertFalse($Bindable->calcFileSizeUnit('large'));
+    }
+
+    /**
      * Saves test.png to the logo field of a new record and returns the record.
      *
      * @return array

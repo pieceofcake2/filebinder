@@ -813,10 +813,12 @@ class BindableBehavior extends ModelBehavior
         $units = ['K', 'M', 'G', 'T'];
         $byte = 1024;
 
-        if (is_numeric($size) || is_int($size)) {
+        if (is_numeric($size)) {
             return $size;
         } elseif (is_string($size) && preg_match('/^([0-9]+(?:\.[0-9]+)?)(' . implode('|', $units) . ')B?$/i', $size, $matches)) {
-            return $matches[1] * pow($byte, array_search($matches[2], $units) + 1);
+            $number = str_contains($matches[1], '.') ? (float)$matches[1] : (int)$matches[1];
+
+            return $number * pow($byte, (int)array_search(strtoupper($matches[2]), $units, true) + 1);
         }
 
         return false;
