@@ -1,45 +1,50 @@
 <?php
 App::uses('Security', 'Utility');
 
-class FilebinderController extends FilebinderAppController {
-
+/**
+ * Filebinder Controller
+ *
+ * Sends the files that are not under the webroot, with the signed URLs of `LabelHelper`.
+ *
+ * @property SessionComponent $Session
+ */
+class FilebinderController extends FilebinderAppController
+{
     public $name = 'Filebinder';
-    public $uses = array('Attachment');
-    public $components = array('Session');
+    public $uses = ['Attachment'];
+    public $components = ['Session'];
     public $noUpdateHash = true;
 
     /**
-     * loader
-     * file loader
+     * Sends a file.
      *
-     * @param string $model
-     * @param string $model_id
-     * @param string $fieldName
-     * @param string $hash
-     * @return
+     * @param string|null $model Model name.
+     * @param string|null $model_id Model ID, or `0` for an uploaded file that is not saved yet.
+     * @param string|null $fieldName Field name.
+     * @param string|null $fileName File name.
+     * @return void
+     * @throws \NotFoundException When the URL is not valid or the file does not exist.
      */
-    public function loader($model = null, $model_id = null, $fieldName = null, $fileName = null){
+    public function loader($model = null, $model_id = null, $fieldName = null, $fileName = null)
+    {
         $this->layout = false;
         $this->autoRender = false;
         Configure::write('debug', 0);
 
         if (!$model || $model_id == null || !$fieldName || empty($this->request->query['key']) || empty($this->request->query['expire'])) {
             throw new NotFoundException(__('Invalid access'));
-            return;
         }
         $key = $this->request->query['key'];
         $expire = $this->request->query['expire'];
 
         if ($expire < time()) {
             throw new NotFoundException(__('Invalid access'));
-            return;
         }
 
         $secret = $this->Session->read('Filebinder.secret');
 
         if (Security::hash($model . $model_id . $fieldName . $secret . $expire) !== $key) {
             throw new NotFoundException(__('Invalid access'));
-            return;
         }
 
         $this->loadModel($model);
@@ -56,11 +61,13 @@ class FilebinderController extends FilebinderAppController {
             }
             $filePath = $tmpPath . $fileName;
         } else {
-            $query = array();
+            $query = [];
             $query['recursive'] = -1;
-            $query['fields'] = array($this->{$model}->primaryKey,
-                                     $fieldName);
-            $query['conditions'] = array($this->{$model}->primaryKey => $model_id);
+            $query['fields'] = [
+                $this->{$model}->primaryKey,
+                $fieldName,
+            ];
+            $query['conditions'] = [$this->{$model}->primaryKey => $model_id];
             $file = $this->{$model}->find('first', $query);
 
             if (empty($fileName)) {
@@ -72,23 +79,22 @@ class FilebinderController extends FilebinderAppController {
 
         if (!file_exists($filePath)) {
             throw new NotFoundException(__('Invalid access'));
-            return;
         }
         if (strstr(env('HTTP_USER_AGENT'), 'MSIE')) {
-            $fileName = mb_convert_encoding($fileName,  "SJIS", "UTF-8");
-            header('Content-Disposition: inline; filename="'. $fileName .'"');
+            $fileName = mb_convert_encoding($fileName, 'SJIS', 'UTF-8');
+            header('Content-Disposition: inline; filename="' . $fileName . '"');
         } else {
-            header('Content-Disposition: attachment; filename="'. $fileName .'"');
+            header('Content-Disposition: attachment; filename="' . $fileName . '"');
         }
 
-        header('Content-Length: '. filesize($filePath));
+        header('Content-Length: ' . filesize($filePath));
         if (!empty($fileContentType)) {
             header('Content-Type: ' . $fileContentType);
-        } else if (class_exists('FInfo')) {
-            $info  =  new FInfo(FILEINFO_MIME_TYPE);
+        } elseif (class_exists('FInfo')) {
+            $info = new FInfo(FILEINFO_MIME_TYPE);
             $fileContentType = $info->file($filePath);
             header('Content-Type: ' . $fileContentType);
-        } else if (function_exists('mime_content_type')) {
+        } elseif (function_exists('mime_content_type')) {
             $fileContentType = mime_content_type($filePath);
             header('Content-Type: ' . $fileContentType);
         }
@@ -96,5 +102,4 @@ class FilebinderController extends FilebinderAppController {
         ob_end_clean(); // clean
         readfile($filePath);
     }
-
-  }
+}

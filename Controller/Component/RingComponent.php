@@ -1,33 +1,59 @@
 <?php
 App::uses('Security', 'Utility');
 
-class RingComponent extends Component {
+/**
+ * Ring Component
+ *
+ * Keeps the uploaded files of the bound fields in the session between the requests of a form with a
+ * confirmation page.
+ *
+ * @property SessionComponent $Session
+ */
+class RingComponent extends Component
+{
+    /**
+     * Components
+     *
+     * @var array
+     */
+    public $components = ['Session'];
 
-    public $components = array('Session');
-    public $_autoBindDown = array();
+    /**
+     * Models to bind down before rendering
+     *
+     * @var array<string>
+     */
+    public $_autoBindDown = []; // phpcs:ignore PSR2.Classes.PropertyDeclaration.Underscore
 
+    /**
+     * Session key
+     *
+     * @var string
+     */
     public static $sessionKey = 'Filebinder';
 
     /**
-     * __construct
+     * Constructor
      *
      * @param ComponentCollection $collection instance for the ComponentCollection
      * @param array $settings Settings to set to the component
      * @return void
      */
-    public function __construct(ComponentCollection $collection, $settings = array()) {
+    public function __construct(ComponentCollection $collection, $settings = [])
+    {
         $this->controller = $collection->getController();
         parent::__construct($collection, $settings);
     }
 
     /**
-     * startUp
+     * Sets the Label helper and the secret of the loader URLs.
      *
-     * @param $controller
-     * @return
+     * @param Controller $controller Controller.
+     * @return void
      */
-    public function startUp(Controller $controller) {
-        $controller->helpers['Filebinder.Label'] = array('sessionKey' => self::$sessionKey);
+    public function startUp(Controller $controller)
+    {
+        $controller->helpers['Filebinder.Label'] = ['sessionKey' => self::$sessionKey];
         if (!$this->Session->read(self::$sessionKey . '.secret')) {
             if (Configure::read('Filebinder.secret')) {
                 $this->Session->write(self::$sessionKey . '.secret', Configure::read('Filebinder.secret'));
@@ -38,11 +64,13 @@ class RingComponent extends Component {
     }
 
     /**
-     * Before render
+     * Binds down the models given to `bindUp()` with `$autoBindDown`.
      *
-     * @param &$controller
+     * @param Controller $controller Controller.
+     * @return void
      */
-    public function beforeRender(Controller $controller){
+    public function beforeRender(Controller $controller)
+    {
         if ($this->_autoBindDown) {
             foreach ($this->_autoBindDown as $i => $bindDownModel) {
                 $this->bindDown($bindDownModel);
@@ -52,12 +80,14 @@ class RingComponent extends Component {
     }
 
     /**
-     * bindUp
-     * set attach file
+     * Moves the uploaded files of the request data to the temporary path and replaces them with their file data.
      *
-     * @return
+     * @param string|null $modelName Model name. Default: the model of the controller.
+     * @param bool $autoBindDown Whether to call `bindDown()` before rendering.
+     * @return false|void
      */
-    public function bindUp($modelName = null, $autoBindDown = false){
+    public function bindUp($modelName = null, $autoBindDown = false)
+    {
         if (empty($modelName)) {
             $modelName = $this->controller->modelClass;
         }
@@ -67,6 +97,7 @@ class RingComponent extends Component {
         }
         if (empty($this->controller->request->data[$model->alias])) {
             $this->Session->delete(self::$sessionKey . '.' . $model->alias);
+
             return false;
         }
         $value = reset($this->controller->request->data[$model->alias]);
@@ -76,7 +107,6 @@ class RingComponent extends Component {
             foreach ($this->controller->request->data[$model->alias] as $i => $data) {
                 $this->_bindUp($model, $this->controller->request->data[$model->alias][$i], $i);
             }
-
         } else { // single model data
             $this->_bindUp($model, $this->controller->request->data[$model->alias]);
         }
@@ -87,12 +117,13 @@ class RingComponent extends Component {
     }
 
     /**
-     * bindDown
-     * Check $this->data and recover uploaded file with session
+     * Keeps the file data of the request data in the session.
      *
-     * @return
+     * @param string|null $modelName Model name. Default: the model of the controller.
+     * @return false|void
      */
-    public function bindDown($modelName = null) {
+    public function bindDown($modelName = null)
+    {
         if (empty($modelName)) {
             $modelName = $this->controller->modelClass;
         }
@@ -112,7 +143,6 @@ class RingComponent extends Component {
             foreach ($this->controller->request->data[$model->alias] as $i => $data) {
                 $this->_bindDown($model, $this->controller->request->data[$model->alias][$i], $i);
             }
-
         } else { // single model data
             $this->_bindDown($model, $this->controller->request->data[$model->alias]);
         }
@@ -121,13 +151,14 @@ class RingComponent extends Component {
     /**
      * bindUp support method
      *
-     * @param Model &$model
-     * @param array &$data
-     * @param int $i
-     * @access protected
+     * @param Model $model Model.
+     * @param array $data Data of a record.
+     * @param int|null $i Index of the record in hasMany data.
+     * @return void
      */
-    protected function _bindUp(Model $model, &$data, $i = null) {
-        $bindFields = Set::combine($model->bindFields, '/field' , '/');
+    protected function _bindUp(Model $model, &$data, $i = null)
+    {
+        $bindFields = Set::combine($model->bindFields, '/field', '/');
 
         foreach ($data as $fieldName => $value) {
             if (!in_array($fieldName, Set::extract('/field', $model->bindFields))) {
@@ -150,12 +181,14 @@ class RingComponent extends Component {
             // move_uploaded_file
             move_uploaded_file($tmpFile, $tmpBindPath);
 
-            $ring = array('model' => $model->alias,
-                          'field_name' => $fieldName,
-                          'file_name' => $fileName,
-                          'file_content_type' => $contentType,
-                          'file_size' => $fileSize,
-                          'tmp_bind_path' => $tmpBindPath);
+            $ring = [
+                'model' => $model->alias,
+                'field_name' => $fieldName,
+                'file_name' => $fileName,
+                'file_content_type' => $contentType,
+                'file_size' => $fileSize,
+                'tmp_bind_path' => $tmpBindPath,
+            ];
 
             $data[$fieldName] = $ring;
         }
@@ -175,12 +208,13 @@ class RingComponent extends Component {
     /**
      * bindDown support method
      *
-     * @param Model &$model
-     * @param array $data
-     * @param int $i
-     * @access protected
+     * @param Model $model Model.
+     * @param array $data Data of a record.
+     * @param int|null $i Index of the record in hasMany data.
+     * @return void
      */
-    protected function _bindDown(Model $model, $data, $i = null) {
+    protected function _bindDown(Model $model, $data, $i = null)
+    {
         $sessionKey = is_int($i) ? self::$sessionKey . ".{$model->alias}.{$i}." : self::$sessionKey . ".{$model->alias}.";
 
         foreach ($data as $fieldName => $value) {
@@ -207,19 +241,17 @@ class RingComponent extends Component {
     /**
      * Find the model automatically
      *
-     * @param string $modelName
-     * @access Model
-     * @access protected
+     * @param string $modelName Model name.
+     * @return Model|null
      */
-    protected function &_getModel($modelName) {
+    protected function &_getModel($modelName)
+    {
         $model = null;
 
         if (!empty($this->controller->{$modelName})) {
             $model =& $this->controller->{$modelName};
-
-        } else if (!empty($this->controller->{$this->controller->modelClass}->{$modelName})) {
+        } elseif (!empty($this->controller->{$this->controller->modelClass}->{$modelName})) {
             $model =& $this->controller->{$this->controller->modelClass}->{$modelName};
-
         } else {
             $model =& ClassRegistry::init($modelName);
         }
@@ -230,43 +262,46 @@ class RingComponent extends Component {
     /**
      * Check whether array is valid uploaded-data
      *
-     * @param $array The array of uploaded-data
+     * @param mixed $array The array of uploaded-data
      * @return bool
-     * @access protected
      */
-    protected function _checkFileUploaded($array) {
+    protected function _checkFileUploaded($array)
+    {
         if (!is_array($array)) {
             return false;
         }
 
-        $keys = array('name', 'type', 'tmp_name', 'error', 'size');
+        $keys = ['name', 'type', 'tmp_name', 'error', 'size'];
+
         return $this->_checkKeyExists($array, $keys);
     }
 
     /**
      * Check whether array is valid bind-upped data
      *
-     * @param $array The array of bind-upped data
+     * @param mixed $array The array of bind-upped data
      * @return bool
      */
-    protected function _checkBindUpped($array) {
+    protected function _checkBindUpped($array)
+    {
         if (!is_array($array)) {
             return false;
         }
 
-        $keys = array('field_name', 'file_name', 'file_content_type', 'file_size', 'tmp_bind_path');
+        $keys = ['field_name', 'file_name', 'file_content_type', 'file_size', 'tmp_bind_path'];
+
         return $this->_checkKeyExists($array, $keys);
     }
 
     /**
      * Check whether array has keys
      *
-     * @param $array The array
-     * @param $keys The array of keys
+     * @param array $array The array
+     * @param array $keys The array of keys
      * @return bool
-     * @access protected
      */
-    protected function _checkKeyExists($array, $keys) {
+    protected function _checkKeyExists($array, $keys)
+    {
         $diff = array_intersect_key(Set::normalize($keys), $array);
 
         if (count($keys) !== count($diff)) {
@@ -275,4 +310,4 @@ class RingComponent extends Component {
 
         return true;
     }
-  }
+}
