@@ -6,6 +6,8 @@ App::uses('FilebinderAppController', 'Filebinder.Controller');
 App::uses('FilebinderController', 'Filebinder.Controller');
 App::uses('Folder', 'Utility');
 App::uses('FilebinderPost', 'Model');
+App::uses('View', 'View');
+App::uses('LabelHelper', 'Filebinder.View/Helper');
 
 class FilebinderControllerTest extends CakeTestCase
 {
@@ -66,11 +68,70 @@ class FilebinderControllerTest extends CakeTestCase
      */
     public function testLoader(): void
     {
-        $this->_sign('FilebinderPost', '1', 'logo');
+        $this->_sign('FilebinderPost', '1', 'logo', null, 'logo.png');
 
         $output = $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
 
         $this->assertSame(file_get_contents($this->filePath . 'FilebinderPost/1/logo/logo.png'), $output);
+    }
+
+    /**
+     * loader() accepts the URLs of LabelHelper, for an uploaded file and for a saved record.
+     */
+    public function testLoaderUrlOfLabelHelper(): void
+    {
+        $Label = new LabelHelper(new View());
+        $files = [
+            ['model' => 'FilebinderPost', 'field_name' => 'logo', 'file_name' => 'logo.png', 'tmp_bind_path' => $this->filePath . 'tmp/ring_20261022_abc_logo.png'],
+            ['model' => 'FilebinderPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png', 'file_path' => $this->filePath . 'FilebinderPost/1/logo/logo.png'],
+        ];
+        foreach ($files as $file) {
+            $url = $Label->_makeSrc($file);
+            $this->Controller->request->query = $url['?'];
+
+            $output = $this->_load($url[0], (string)$url[1], $url[2], $url[3]);
+
+            $this->assertSame(file_get_contents(CakePlugin::path('Filebinder') . 'tests/File/test.png'), $output);
+        }
+    }
+
+    /**
+     * The URL of a saved record without a file name keeps the key of fusic/filebinder.
+     */
+    public function testLoaderWithoutFileName(): void
+    {
+        $expire = strtotime('+1 minute');
+        $this->Controller->request->query = [
+            'key' => Security::hash('FilebinderPost1logosecret' . $expire),
+            'expire' => (string)$expire,
+        ];
+
+        $output = $this->_load('FilebinderPost', '1', 'logo', null);
+
+        $this->assertSame(file_get_contents($this->filePath . 'FilebinderPost/1/logo/logo.png'), $output);
+    }
+
+    /**
+     * loader() rejects a signed URL whose file name is changed.
+     */
+    public function testLoaderChangedFileName(): void
+    {
+        copy($this->filePath . 'tmp/ring_20261022_abc_logo.png', $this->filePath . 'tmp/other.png');
+        $this->_sign('FilebinderPost', '0', 'logo', null, 'ring_20261022_abc_logo.png');
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '0', 'logo', 'other.png');
+    }
+
+    /**
+     * loader() rejects a signed URL of a saved record whose file name is changed.
+     */
+    public function testLoaderChangedFileNameOfRecord(): void
+    {
+        $this->_sign('FilebinderPost', '1', 'logo', null, 'logo.png');
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '1', 'logo', 'other.html');
     }
 
     /**
@@ -90,7 +151,7 @@ class FilebinderControllerTest extends CakeTestCase
      */
     public function testLoaderExpired(): void
     {
-        $this->_sign('FilebinderPost', '1', 'logo', time() - 1);
+        $this->_sign('FilebinderPost', '1', 'logo', time() - 1, 'logo.png');
 
         $this->expectException(NotFoundException::class);
         $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
@@ -110,7 +171,7 @@ class FilebinderControllerTest extends CakeTestCase
      */
     public function testLoaderRecordNotFound(): void
     {
-        $this->_sign('FilebinderPost', '999', 'logo');
+        $this->_sign('FilebinderPost', '999', 'logo', null, 'logo.png');
 
         $this->expectException(NotFoundException::class);
         $this->_load('FilebinderPost', '999', 'logo', 'logo.png');
@@ -121,7 +182,7 @@ class FilebinderControllerTest extends CakeTestCase
      */
     public function testLoaderRecordWithoutFile(): void
     {
-        $this->_sign('FilebinderPost', '401', 'logo');
+        $this->_sign('FilebinderPost', '401', 'logo', null, 'logo.png');
 
         $this->expectException(NotFoundException::class);
         $this->_load('FilebinderPost', '401', 'logo', 'logo.png');
@@ -196,7 +257,7 @@ class FilebinderControllerTest extends CakeTestCase
     {
         $expire = $expire ?? strtotime('+1 minute');
         $this->Controller->request->query = [
-            'key' => Security::hash($model . $modelId . $fieldName . 'secret' . $expire),
+            'key' => Security::hash($model . $modelId . $fieldName . $fileName . 'secret' . $expire),
             'expire' => (string)$expire,
         ];
     }
@@ -207,10 +268,10 @@ class FilebinderControllerTest extends CakeTestCase
      * @param string $model Model name.
      * @param string $modelId Model ID.
      * @param string $fieldName Field name.
-     * @param string $fileName File name.
+     * @param string|null $fileName File name.
      * @return string
      */
-    protected function _load(string $model, string $modelId, string $fieldName, string $fileName): string
+    protected function _load(string $model, string $modelId, string $fieldName, ?string $fileName): string
     {
         $level = ob_get_level();
         ob_start();

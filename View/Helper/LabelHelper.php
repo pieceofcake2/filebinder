@@ -133,7 +133,7 @@ class LabelHelper extends AppHelper
 
         $expire = Configure::read('Filebinder.expire') ? strtotime(Configure::read('Filebinder.expire')) : strtotime('+1 minute');
 
-        $key = Security::hash($file['model'] . $file['model_id'] . $file['field_name'] . $secret . $expire);
+        $key = Security::hash($file['model'] . $file['model_id'] . $file['field_name'] . $prefix . $file['file_name'] . $secret . $expire);
 
         $url = array_merge($url, [
             'plugin' => 'filebinder',

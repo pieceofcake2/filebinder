@@ -66,7 +66,7 @@ class LabelHelperTest extends CakeTestCase
             '1',
             'logo',
             'logo.png',
-            '?' => ['key' => Security::hash('FilebinderPost1logosecret' . $expire), 'expire' => $expire],
+            '?' => ['key' => Security::hash('FilebinderPost1logologo.pngsecret' . $expire), 'expire' => $expire],
         ], $result);
     }
 
