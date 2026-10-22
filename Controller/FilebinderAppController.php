@@ -1,4 +1,4 @@
 <?php
-class FilebinderAppController extends AppController {
+class FilebinderAppController extends AppController
+{
 }
-

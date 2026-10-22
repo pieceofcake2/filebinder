@@ -1,0 +1,26 @@
+includes:
+    - vendor/pieceofcake2/phpstan-cakephp2/extension.neon
+
+parameters:
+    level: 5
+    phpVersion: 80100
+    paths:
+        - Config
+        - Controller
+        - Lib
+        - Model
+        - View
+    bootstrapFiles:
+        - tests/bootstrap.php
+    ModelBehaviorsExtension:
+        behaviorPaths:
+            - Model/Behavior/*.php
+    scanDirectories:
+        - vendor/pieceofcake2/async-aws/Controller
+        - vendor/pieceofcake2/async-aws/Lib
+    ignoreErrors:
+        # The models declare the bound fields in $bindFields, and the behavior keeps the data to save in
+        # $bindedData of the model between beforeSave() and afterSave(). Model does not declare them.
+        -
+            message: '#^Access to an undefined property Model::\$(bindFields|bindedData)\.$#'
+            identifier: property.notFound

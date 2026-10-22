@@ -1,30 +1,61 @@
 <?php
 
-if (file_exists(dirname(__FILE__) . '/../../vendor/autoload.php')) {
-    require_once(dirname(__FILE__) . '/../../vendor/autoload.php');
-}
+App::uses('FilebinderS3StorageFactory', 'Filebinder.Storage');
+App::uses('FilebinderContentType', 'Filebinder.Lib');
 
-use Aws\S3\S3Client;
-use Aws\Common\Enum\Region;
-use Aws\S3\Exception\S3Exception;
-use Guzzle\Http\EntityBody;
-
-class BindableBehavior extends ModelBehavior {
-
-    public $settings = array();
-    public $runtime = array();
-
-    const STORAGE_DB = 'Db';
-    const STORAGE_S3 = 'S3';
+/**
+ * Bindable Behavior
+ *
+ * Binds files to the fields listed in `$bindFields` of the model. The file data are saved in the
+ * attachment model, and the files in a local path, the database and/or Amazon S3.
+ */
+class BindableBehavior extends ModelBehavior
+{
+    /**
+     * Settings by model alias
+     *
+     * @var array
+     */
+    public $settings = [];
 
     /**
-     * setUp
+     * Runtime values by model alias
      *
-     * @param $model
-     * @param $settings
+     * @var array
      */
-    public function setUp(Model $model, $settings = array()){
-        $defaults = array(
+    public $runtime = [];
+
+    /**
+     * Bound fields of the current find(), set by beforeFind() and used by afterFind()
+     *
+     * @var array
+     */
+    public $bindFields = [];
+
+    /**
+     * Storage: the database (the `file_object` field of the attachment model)
+     *
+     * @var string
+     */
+    public const STORAGE_DB = 'Db';
+
+    /**
+     * Storage: Amazon S3
+     *
+     * @var string
+     */
+    public const STORAGE_S3 = 'S3';
+
+    /**
+     * Setup
+     *
+     * @param Model $model Model using the behavior.
+     * @param array $settings Settings.
+     * @return void
+     */
+    public function setUp(Model $model, $settings = [])
+    {
+        $defaults = [
             'model' => 'Attachment', // attachment model
             'filePath' => WWW_ROOT . 'img' . DS, // default attached local file path. if 'false', not save local
             // 'dbStorage' => true, // backward compatible
@@ -36,12 +67,12 @@ class BindableBehavior extends ModelBehavior {
             'restoreFromStorage' => true, // if local file not exists, restore from strage
             'dirMode' => 0755,
             'fileMode' => 0644,
-        );
+        ];
 
-        $defaultRuntime = array(
+        $defaultRuntime = [
             'bindedModel' => null,
             'primaryKey' => 'id',
-        );
+        ];
 
         // Default settings
         $this->settings[$model->alias] = Set::merge($defaults, $settings);
@@ -54,66 +85,72 @@ class BindableBehavior extends ModelBehavior {
     }
 
     /**
-     * setSettings
+     * Changes the settings of the model.
      *
-     * @param $model
-     * @param $settings
+     * @param Model $model Model using the behavior.
+     * @param array $settings Settings merged into the current settings.
+     * @return void
      */
-    public function setSettings(Model $model, $settings){
+    public function setSettings(Model $model, $settings)
+    {
         $before = $this->getSettings($model);
         $this->setUp($model, Set::merge($before, $settings));
     }
 
     /**
-     * getSettings
+     * Returns the settings of the model.
      *
-     * @param $model
+     * @param Model $model Model using the behavior.
+     * @return array
      */
-    public function getSettings(Model $model){
+    public function getSettings(Model $model)
+    {
         return $this->settings[$model->alias];
     }
 
     /**
      * beforeValidate
      *
-     * @param $model
-     * @param $options
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $options Options passed from Model::save().
+     * @return bool
      */
-    public function beforeValidate(Model $model, $options = array()){
+    public function beforeValidate(Model $model, $options = [])
+    {
         return true;
     }
 
     /**
-     * withObject
-     * find attachment with file object
+     * Sets whether find() returns the file contents (`file_object`) of the attachments.
      *
-     * @param $model
-     * @param $bool
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param bool $bool Whether to return the file contents.
+     * @return void
      */
-    public function withObject(Model $model, $bool = true){
+    public function withObject(Model $model, $bool = true)
+    {
         $this->settings[$model->alias]['withObject'] = (bool)$bool;
     }
 
     /**
-     * beforeFind
+     * Removes the bound fields from the fields of the query.
      *
-     * @param $model
-     * @param $queryData
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $queryData Query.
+     * @return array
      */
-    public function beforeFind(Model $model, $queryData = null){
+    public function beforeFind(Model $model, $queryData = null)
+    {
         if (empty($model->bindFields)) {
             return $queryData;
         }
-        $this->bindFields = Set::combine($model->bindFields, '/field' , '/');
+        $this->bindFields = Set::combine($model->bindFields, '/field', '/');
         if (empty($queryData['fields'])) {
             return $queryData;
         }
 
         $modelName = $model->alias;
-        $fields = (array) $queryData['fields'];
+        $fields = (array)$queryData['fields'];
         $flip = array_flip($fields);
         foreach ($this->bindFields as $fieldName => $data) {
             unset($flip[$modelName . '.' . $fieldName]);
@@ -123,29 +160,32 @@ class BindableBehavior extends ModelBehavior {
             }
         }
         $queryData['fields'] = array_flip($flip);
+
         return $queryData;
     }
 
     /**
-     * afterFind
+     * Adds the file data of the bound fields to the results.
      *
-     * @param $model
-     * @param $result
-     * @param $primary
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param mixed $result Results.
+     * @param bool $primary Whether the model was queried directly.
+     * @return mixed
      */
-    public function afterFind(Model $model, $result, $primary = false){
+    public function afterFind(Model $model, $result, $primary = false)
+    {
         return $this->bindFile($model, $result);
     }
 
     /**
-     * beforeSave
+     * Saves the attachments of the bound fields.
      *
-     * @param $model
-     * @param $options
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $options Options passed from Model::save().
+     * @return bool
      */
-    public function beforeSave(Model $model, $options = array()) {
+    public function beforeSave(Model $model, $options = [])
+    {
         $modelName = $model->alias;
         $model->bindedData = $model->data;
         foreach ($model->data[$modelName] as $fieldName => $value) {
@@ -161,6 +201,7 @@ class BindableBehavior extends ModelBehavior {
             if (empty($value['file_size'])) {
                 $model->data[$modelName][$fieldName] = null;
                 $model->invalidate($fieldName, __('Validation Error: File Upload Error', true));
+
                 return false;
             }
 
@@ -169,12 +210,14 @@ class BindableBehavior extends ModelBehavior {
             $bind['model_id'] = 0;
 
             $tmpFile = $value['tmp_bind_path'];
+            // The same type as RingComponent::bindUp(), whatever the data say
+            $bind['file_content_type'] = FilebinderContentType::detect((string)$tmpFile) ?? 'application/octet-stream';
             if (file_exists($tmpFile) && is_file($tmpFile)) {
                 /**
                  * beforeAttach
                  */
                 if (!empty($this->settings[$model->alias]['beforeAttach'])) {
-                    $res = $this->_userfunc($model, $this->settings[$model->alias]['beforeAttach'], array($tmpFile));
+                    $res = $this->_userfunc($model, $this->settings[$model->alias]['beforeAttach'], [$tmpFile]);
                     if (!$res) {
                         return false;
                     }
@@ -200,21 +243,22 @@ class BindableBehavior extends ModelBehavior {
 
             $bind_id = $this->runtime[$model->alias]['bindedModel']->getLastInsertId();
             unset($model->data[$modelName][$fieldName]);
-            $model->bindedData[$modelName][$fieldName] = $data[$this->runtime[$model->alias]['bindedModel']->alias] + array($this->runtime[$model->alias]['bindedModel']->primaryKey => $bind_id);
+            $model->bindedData[$modelName][$fieldName] = $data[$this->runtime[$model->alias]['bindedModel']->alias] + [$this->runtime[$model->alias]['bindedModel']->primaryKey => $bind_id];
         }
 
         return true;
     }
 
     /**
-     * afterSave
+     * Saves the files of the bound fields and links the attachments to the record.
      *
-     * @param $model
-     * @param $created
-     * @param $options
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param bool $created Whether a new record was created.
+     * @param array $options Options passed from Model::save().
+     * @return false|void
      */
-    public function afterSave(Model $model, $created, $options = array()){
+    public function afterSave(Model $model, $created, $options = [])
+    {
         $modelName = $model->alias;
 
         if ($created) {
@@ -227,9 +271,9 @@ class BindableBehavior extends ModelBehavior {
             $model_id = $model->bindedData[$modelName][$this->runtime[$model->alias]['primaryKey']];
         }
 
-        $bindFields = Set::combine($model->bindFields, '/field' , '/');
+        $bindFields = Set::combine($model->bindFields, '/field', '/');
         $fields = Set::extract('/field', $model->bindFields);
-        $deleteFields = array();
+        $deleteFields = [];
 
         foreach ($fields as $field) {
             $deleteFields[] = 'delete_' . $field;
@@ -240,10 +284,8 @@ class BindableBehavior extends ModelBehavior {
             if (in_array($fieldName, $deleteFields) && $value) {
                 $delete = true;
                 $fieldName = substr($fieldName, 7);
-
-            } else if (in_array($fieldName, $fields)) {
+            } elseif (in_array($fieldName, $fields)) {
                 $delete = false;
-
             } else {
                 continue;
             }
@@ -253,13 +295,12 @@ class BindableBehavior extends ModelBehavior {
 
                 if ($delete || $this->settings[$model->alias]['exchangeFile']) {
                     $this->deleteEntity($model, $model_id, $fieldName);
-
                 } else {
-                    $this->runtime[$model->alias]['bindedModel']->deleteAll(array(
+                    $this->runtime[$model->alias]['bindedModel']->deleteAll([
                             'model' => $modelName,
                             'model_id' => $model_id,
-                            'field_name' => $fieldName
-                        ));
+                            'field_name' => $fieldName,
+                        ]);
                 }
             }
 
@@ -267,7 +308,7 @@ class BindableBehavior extends ModelBehavior {
                 continue;
             }
 
-            $bind = array();
+            $bind = [];
             $bind[$this->runtime[$model->alias]['bindedModel']->primaryKey] = $value[$this->runtime[$model->alias]['bindedModel']->primaryKey];
             $bind['model_id'] = $model_id;
 
@@ -278,7 +319,7 @@ class BindableBehavior extends ModelBehavior {
 
             $baseDir = empty($bindFields[$fieldName]['filePath']) ? $this->settings[$model->alias]['filePath'] : $bindFields[$fieldName]['filePath'];
             if ($baseDir) {
-                $filePath = $baseDir . $model->transferTo(array_diff_key(array('model_id' => $model_id) + $value, Set::normalize(array('tmp_bind_path'))));
+                $filePath = $baseDir . $model->transferTo(array_diff_key(['model_id' => $model_id] + $value, Set::normalize(['tmp_bind_path'])));
             } else {
                 $filePath = false;
             }
@@ -296,8 +337,9 @@ class BindableBehavior extends ModelBehavior {
                         mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
                     }
                     if (!copy($tmpFile, $filePath) || !chmod($filePath, $this->settings[$model->alias]['fileMode'])) {
-                        @unlink($tmpFile);
+                        $this->_removeFile($tmpFile);
                         umask($currentMask);
+
                         return false;
                     }
                     umask($currentMask);
@@ -308,46 +350,25 @@ class BindableBehavior extends ModelBehavior {
                  */
                 $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                 if ($s3Storage) {
-                    if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                    $s3 = $this->_s3Settings($bindFields[$fieldName] ?? []);
+                    if (empty($s3['bucket'])) {
                         //__('Validation Error: S3 Parameter Error');
-                        @unlink($tmpFile);
-                        return false;
-                    }
-                    $options = array(
-                        'credentials' => array(
-                            'key' => Configure::read('Filebinder.S3.key'),
-                            'secret' => Configure::read('Filebinder.S3.secret'),
-                        ),
-                        'region' => Configure::read('Filebinder.S3.region'),
-                        'version' => 'latest'
-                    );
-                    
-                    $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                    if (empty($bucket)) {
-                        //__('Validation Error: S3 Parameter Error');
-                        @unlink($tmpFile);
-                        return false;
-                    }
-                    $s3 = S3Client::factory($options);
+                        $this->_removeFile($tmpFile);
 
-                    $region = !empty($bindFields[$fieldName]['region']) ? $bindFields[$fieldName]['region'] : Configure::read('Filebinder.S3.region');
-                    $acl = !empty($bindFields[$fieldName]['acl']) ? $bindFields[$fieldName]['acl'] : Configure::read('Filebinder.S3.acl');
-                    if (empty($acl)) {
-                        $acl = 'public-read';
+                        return false;
                     }
-                    $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
 
                     try {
-                        $result = $s3->putObject(array(
-                            'Bucket' => $bucket,
-                            'Key' => $urlPrefix . $model->transferTo(array_diff_key(array('model_id' => $model_id) + $value, Set::normalize(array('tmp_bind_path')))),
-                            'Body' => fopen($tmpFile, 'r'),
-                            'ACL' => $acl,
-                        ));
-                    } catch (S3Exception $e) {
-                        @unlink($tmpFile);
-                        throw new S3Exception($e->getMessage());
-                        return false;
+                        $this->s3Storage($model, $fieldName)->put(
+                            $s3['bucket'],
+                            $s3['urlPrefix'] . $model->transferTo(array_diff_key(['model_id' => $model_id] + $value, Set::normalize(['tmp_bind_path']))),
+                            $tmpFile,
+                            ['ACL' => $s3['acl']],
+                        );
+                    } catch (Exception $e) {
+                        $this->_removeFile($tmpFile);
+
+                        throw $e;
                     }
                 }
             }
@@ -358,26 +379,28 @@ class BindableBehavior extends ModelBehavior {
                  * afterAttach
                  */
                 if (!empty($this->settings[$model->alias]['afterAttach'])) {
-                    $res = $this->_userfunc($model, $this->settings[$model->alias]['afterAttach'], array($filePath));
+                    $res = $this->_userfunc($model, $this->settings[$model->alias]['afterAttach'], [$filePath]);
                     if (!$res) {
-                        @unlink($tmpFile);
+                        $this->_removeFile($tmpFile);
+
                         return false;
                     }
                 }
             }
-            @unlink($tmpFile);
+            $this->_removeFile($tmpFile);
         }
-
     }
 
     /**
-     * afterDelete
+     * Deletes the attachments and the files of the deleted record.
      *
-     * @param $model
-     * @return
+     * @param Model $model Model using the behavior.
+     * @return bool
      */
-    public function afterDelete(Model $model){
+    public function afterDelete(Model $model)
+    {
         $this->deleteEntity($model, $model->id);
+
         return true;
     }
 
@@ -394,7 +417,7 @@ class BindableBehavior extends ModelBehavior {
      *   - uniqid()
      *   - etc..
      *
-     * @param Model Model $model
+     * @param Model $model Model using the behavior.
      * @param array $data binded file data
      *   - id: binded model id
      *   - model: model name
@@ -409,31 +432,33 @@ class BindableBehavior extends ModelBehavior {
      * @see BindableBehavior::afterSave()
      * @see BindableBehavior::afterFind()
      */
-    public function transferTo(Model $model, $data) {
+    public function transferTo(Model $model, $data)
+    {
         return $model->alias . DS . $data['model_id'] . DS . $data['field_name'] . DS . $data['file_name'];
     }
 
     /**
-     * deleteEntity
+     * Deletes the attachments and the files of a record.
      *
-     * @param Model $&model
+     * @param Model $model Model using the behavior.
      * @param mixed $modelId The model id
-     * @param fields
-     * @return
+     * @param array|string $fields Field names. Default: all the bound fields.
+     * @return bool
      */
-    public function deleteEntity(Model $model, $modelId, $fields = array()){
+    public function deleteEntity(Model $model, $modelId, $fields = [])
+    {
         if (!$deleteFields = $this->_findBindedFields($model, $modelId, $fields)) {
             return false;
         }
 
-        $result = $this->runtime[$model->alias]['bindedModel']->deleteAll(array(
+        $result = $this->runtime[$model->alias]['bindedModel']->deleteAll([
                 'model' => $model->alias,
                 'model_id' => $modelId,
-                'field_name' => array_keys($deleteFields)
-            ));
+                'field_name' => array_keys($deleteFields),
+            ]);
 
         if ($result) {
-            $bindFields = Set::combine($model->bindFields, '/field' , '/');
+            $bindFields = Set::combine($model->bindFields, '/field', '/');
             foreach ($bindFields as $fieldName => $value) {
                 if (!isset($deleteFields[$fieldName])) {
                     continue;
@@ -444,30 +469,16 @@ class BindableBehavior extends ModelBehavior {
                  */
                 $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                 if ($s3Storage) {
-                    if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                    $s3 = $this->_s3Settings($value);
+                    if (empty($s3['bucket'])) {
                         //__('Validation Error: S3 Parameter Error');
                         return false;
                     }
-                    $options = array(
-                        'credentials' => array(
-                            'key' => Configure::read('Filebinder.S3.key'),
-                            'secret' => Configure::read('Filebinder.S3.secret'),
-                        ),
-                        'region' => Configure::read('Filebinder.S3.region'),
-                        'version' => 'latest'
-                    );
-                    $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                    if (empty($bucket)) {
-                        //__('Validation Error: S3 Parameter Error');
-                        return false;
-                    }
-                    $s3 = S3Client::factory($options);
-                    $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
 
-                    $result = $s3->deleteObject(array(
-                        'Bucket' => $bucket,
-                        'Key' => $urlPrefix . $model->transferTo($deleteFields[$fieldName]),
-                    ));
+                    $this->s3Storage($model, $fieldName)->delete(
+                        $s3['bucket'],
+                        $s3['urlPrefix'] . $model->transferTo($deleteFields[$fieldName]),
+                    );
                 }
 
                 /**
@@ -480,7 +491,7 @@ class BindableBehavior extends ModelBehavior {
                     $filePath = false;
                 }
 
-                if ($filePath && file_exists($filePath) && !@unlink($filePath)) {
+                if ($filePath && file_exists($filePath) && !unlink($filePath)) {
                     $result = false;
                 }
             }
@@ -490,35 +501,92 @@ class BindableBehavior extends ModelBehavior {
     }
 
     /**
-     * recursiveRemoveDir
-     * recursively remove directory
+     * Recursively removes a directory.
      *
-     * @param $dir
-     * @return
-     * @access protected
+     * @param string $dir Directory.
+     * @return bool
      */
-    protected function _recursiveRemoveDir($dir) {
+    protected function _recursiveRemoveDir($dir)
+    {
         if (is_dir($dir)) {
             $objects = scandir($dir);
             foreach ($objects as $object) {
-                if ($object != "." && $object != "..") {
-                    if (filetype($dir."/".$object) == "dir") $this->_recursiveRemoveDir($dir."/".$object); else @unlink($dir."/".$object);
+                if ($object != '.' && $object != '..') {
+                    if (filetype($dir . '/' . $object) == 'dir') {
+                        $this->_recursiveRemoveDir($dir . '/' . $object);
+                    } else {
+                        $this->_removeFile($dir . '/' . $object);
+                    }
                 }
             }
             reset($objects);
+
             return rmdir($dir);
         }
+
         return false;
     }
 
     /**
-     * alphaNumericFileName
+     * Returns the S3 storage of a bound field.
+     *
+     * The S3 client is chosen with `Filebinder.S3.client` (`Aws` or `AsyncAws`), or is the client of the loaded
+     * plugin (see `FilebinderS3StorageFactory`). It is configured with the `Aws` (or `AsyncAws`) configuration of the
+     * plugin, and with the deprecated `Filebinder.S3.key`, `Filebinder.S3.secret` and `Filebinder.S3.region`, and
+     * the `region` of the field, which take precedence.
+     *
+     * @param Model $model Model using the behavior.
+     * @param string|null $fieldName Bound field.
+     * @return \FilebinderS3StorageInterface
+     * @throws \FilebinderS3StorageException When no S3 client can be used.
+     */
+    public function s3Storage(Model $model, $fieldName = null)
+    {
+        $field = [];
+        foreach ((array)$model->bindFields as $bindField) {
+            if (isset($bindField['field']) && $bindField['field'] === $fieldName) {
+                $field = $bindField;
+            }
+        }
+
+        return FilebinderS3StorageFactory::create(FilebinderS3StorageFactory::fieldArgs($field));
+    }
+
+    /**
+     * Returns the S3 settings of a bound field: `bucket`, `acl` and `urlPrefix`, from the field or `Filebinder.S3`.
+     *
+     * @param array $field Settings of the bound field.
+     * @return array{bucket: mixed, acl: string, urlPrefix: mixed}
+     */
+    protected function _s3Settings(array $field)
+    {
+        return FilebinderS3StorageFactory::fieldSettings($field);
+    }
+
+    /**
+     * Removes a file if it exists.
+     *
+     * @param string $path File path.
+     * @return bool
+     */
+    protected function _removeFile($path)
+    {
+        if (!is_file($path)) {
+            return false;
+        }
+
+        return unlink($path);
+    }
+
+    /**
      * Validation method: alpha number only
      *
-     * @param $
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @return bool
      */
-    public function alphaNumericFileName(Model $model, $value){
+    public function alphaNumericFileName(Model $model, $value)
+    {
         $file = array_shift($value);
         if (!is_array($file)) {
             return false;
@@ -533,25 +601,26 @@ class BindableBehavior extends ModelBehavior {
         if (!preg_match('/^[\p{Ll}\p{Lm}\p{Lo}\p{Lt}\p{Lu}\p{Nd}.]+$/mu', $fileName)) {
             return false;
         }
+
         return true;
     }
 
     /**
-     * checkExtension
-     * Validation method: check extention
+     * Validation method: check extension
      *
-     * @param $model
-     * @param $value
-     * @param $extension
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @param array|string $extension Allowed extensions.
+     * @return bool
      */
-    public function checkExtension(Model $model, $value, $extension){
+    public function checkExtension(Model $model, $value, $extension)
+    {
         $file = array_shift($value);
         if (!is_array($file)) {
             return false;
         }
-        if (in_array('allowEmpty', $extension)) {
-            $extension = array('jpg', 'jpeg', 'gif', 'png'); // set default
+        if (is_array($extension) && in_array('allowEmpty', $extension)) {
+            $extension = ['jpg', 'jpeg', 'gif', 'png']; // set default
         }
         if (empty($file['tmp_bind_path']) && empty($file['file_path'])) {
             return false;
@@ -559,50 +628,52 @@ class BindableBehavior extends ModelBehavior {
 
         $tmpFilePath = empty($file['tmp_bind_path']) ? $file['file_path'] : $file['tmp_bind_path'];
 
-        $regexp = '/\.(' . implode('|', (array) $extension) . ')$/i';
+        $regexp = '/\.(' . implode('|', (array)$extension) . ')$/i';
         if (!preg_match($regexp, $tmpFilePath)) {
             return false;
         }
+
         return true;
     }
 
     /**
-     * checkContentType
      * Validation method: check MIME type
      *
-     * @param $model
-     * @param $value
-     * @param $mimeType
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @param array|string $mimeType Allowed MIME types (regular expressions).
+     * @return bool
      */
-    public function checkContentType(Model $model, $value, $mimeType){
+    public function checkContentType(Model $model, $value, $mimeType)
+    {
         $file = array_shift($value);
         if (!is_array($file)) {
             return false;
         }
-        if (in_array('allowEmpty', $mimeType)) {
+        if (is_array($mimeType) && in_array('allowEmpty', $mimeType)) {
             return true;
         }
 
         $contentType = $file['file_content_type'];
 
-        $regexp = '#^(' . implode('|', (array) $mimeType) . ')$#';
+        $regexp = '#^(' . implode('|', (array)$mimeType) . ')$#';
         if (!preg_match($regexp, $contentType)) {
             return false;
         }
+
         return true;
     }
 
     /**
-     * checkMaxFileSize
      * Validation method: check max file size
      *
-     * @param $model
-     * @param $value
-     * @param $max
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @param string|int $max Max file size, e.g. `1048576` or `'1MB'`.
+     * @return bool
      */
-    public function checkMaxFileSize(Model $model, $value, $max){
+    public function checkMaxFileSize(Model $model, $value, $max)
+    {
         $file = array_shift($value);
         if (!is_array($file)) {
             return false;
@@ -617,19 +688,20 @@ class BindableBehavior extends ModelBehavior {
         if ($fileSize > $max) {
             return false;
         }
+
         return true;
     }
 
     /**
-     * checkMinFileSize
      * Validation method: check min file size
      *
-     * @param $model
-     * @param $value
-     * @param $min
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @param string|int $min Min file size, e.g. `1024` or `'1KB'`.
+     * @return bool
      */
-    public function checkMinFileSize(Model $model, $value, $min){
+    public function checkMinFileSize(Model $model, $value, $min)
+    {
         $file = array_shift($value);
         if (!is_array($file)) {
             return false;
@@ -644,44 +716,45 @@ class BindableBehavior extends ModelBehavior {
         if ($fileSize < $min) {
             return false;
         }
+
         return true;
     }
 
     /**
-     * checkFileSize
-     * Validation method: check file size
+     * Validation method: check file size (alias of checkMaxFileSize)
      *
-     * @param $model
-     * @param $value
-     * @param $max
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @param string|int $max Max file size, e.g. `1048576` or `'1MB'`.
+     * @return bool
      */
-    public function checkFileSize(Model $model, $value, $max){
+    public function checkFileSize(Model $model, $value, $max)
+    {
         return $this->checkMaxFileSize($model, $value, $max);
     }
 
     /**
-     * notEmptyFile
      * Validation method: check is empty
      *
-     * @param $model
-     * @param $value
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @return bool
      */
-    public function notEmptyFile(Model $model, $value){
+    public function notEmptyFile(Model $model, $value)
+    {
         return $this->checkMinFileSize($model, $value, -1);
     }
 
     /**
-     * funcCheckFile
      * Validation method: check file with user function
      *
-     * @param $model
-     * @param $value
-     * @param $func
-     * @return
+     * @param Model $model Model using the behavior.
+     * @param array $value Field name and value.
+     * @param callable|string $func Function name, or method name of the model, called with the file path.
+     * @return mixed
      */
-    public function funcCheckFile(Model $model, $value, $func){
+    public function funcCheckFile(Model $model, $value, $func)
+    {
         $file = array_shift($value);
         if (!is_array($file)) {
             return false;
@@ -699,11 +772,11 @@ class BindableBehavior extends ModelBehavior {
 
         $tmpFilePath = empty($file['tmp_bind_path']) ? $file['file_path'] : $file['tmp_bind_path'];
 
-        if (!file_exists($tmpFilePath) && is_file($tmpFilePath)) {
+        if (!is_file($tmpFilePath)) {
             return false;
         }
 
-        $result = $this->_userfunc($model, $func, array($tmpFilePath));
+        $result = $this->_userfunc($model, $func, [$tmpFilePath]);
 
         return $result;
     }
@@ -711,20 +784,22 @@ class BindableBehavior extends ModelBehavior {
     /**
      * Calculate file size by unit
      *
-     * e.g.) 100KB -> 1024000
+     * e.g.) 100KB -> 102400
      *
-     * @param $size mixed
-     * @return int file size
+     * @param mixed $size File size, e.g. `102400` or `'100KB'`.
+     * @return string|float|int|false file size
      */
-    public function calcFileSizeUnit($size) {
-        $units = array('K', 'M', 'G', 'T');
+    public function calcFileSizeUnit($size)
+    {
+        $units = ['K', 'M', 'G', 'T'];
         $byte = 1024;
 
-        if (is_numeric($size) || is_int($size)) {
+        if (is_numeric($size)) {
             return $size;
+        } elseif (is_string($size) && preg_match('/^([0-9]+(?:\.[0-9]+)?)(' . implode('|', $units) . ')B?$/i', $size, $matches)) {
+            $number = str_contains($matches[1], '.') ? (float)$matches[1] : (int)$matches[1];
 
-        } else if (is_string($size) && preg_match('/^([0-9]+(?:\.[0-9]+)?)(' . implode('|', $units) . ')B?$/i', $size, $matches)) {
-            return $matches[1] * pow($byte, array_search($matches[2], $units) + 1);
+            return $number * pow($byte, (int)array_search(strtoupper($matches[2]), $units, true) + 1);
         }
 
         return false;
@@ -733,29 +808,29 @@ class BindableBehavior extends ModelBehavior {
     /**
      * Find attached file data from binded model
      *
-     * @param $model $model
+     * @param Model $model Model using the behavior.
      * @param mixed $modelId The model id
-     * @param mixed $fields The fields that searches in string or array
+     * @param array|string $fields The fields that searches in string or array
      * @return array
-     * @access protected
      */
-    protected function _findBindedFields(Model $model, $modelId, $fields = array()) {
-        $query = array(
-            'conditions' => array(
+    protected function _findBindedFields(Model $model, $modelId, $fields = [])
+    {
+        $query = [
+            'conditions' => [
                 'model' => $model->alias,
                 'model_id' => $modelId,
-            ),
-            'fields' => array(
+            ],
+            'fields' => [
                 'id', 'model', 'model_id', 'field_name', 'file_name',
-                'file_content_type', 'file_size', 'created', 'modified'
-            ),
-            'recursive' => -1
-        );
+                'file_content_type', 'file_size', 'created', 'modified',
+            ],
+            'recursive' => -1,
+        ];
 
         if ($fields) {
             if (is_string($fields)) {
-                App::uses('String', 'Utility');
-                $fields = String::tokenize($fields);
+                App::uses('CakeText', 'Utility');
+                $fields = CakeText::tokenize($fields);
             }
 
             $query['conditions']['field_name'] = $fields;
@@ -767,7 +842,7 @@ class BindableBehavior extends ModelBehavior {
             $data = Set::combine(
                 $data,
                 '{n}.' . $this->runtime[$model->alias]['bindedModel']->alias . '.field_name',
-                '{n}.' .  $this->runtime[$model->alias]['bindedModel']->alias
+                '{n}.' . $this->runtime[$model->alias]['bindedModel']->alias,
             );
         }
 
@@ -777,30 +852,23 @@ class BindableBehavior extends ModelBehavior {
     /**
      * Call user function
      *
-     * @param $model Model
-     * @param $function mixed The callable function name
-     * @param $args array The arguments array
+     * @param Model $model Model using the behavior.
+     * @param mixed $function The callable function name
+     * @param array $args The arguments array
      * @return mixed
-     * @access protected
      */
-    protected function _userfunc(Model $model, $function, $args = array()) {
+    protected function _userfunc(Model $model, $function, $args = [])
+    {
         if (is_array($function) && count($function) > 1) {
-            list($class, $method) = $function;
+            [$class, $method] = $function;
 
-            if (is_callable(array($class, $method))) {
-                if (is_object($class) && is_a('Object', $class)) {
-                    return $class->dispatchMethod($method, $args);
-
-                } else {
-                    return call_user_func_array(array($class, $method), $args);
-                }
+            if (is_callable([$class, $method])) {
+                return call_user_func_array([$class, $method], $args);
             }
-
-        } else if (is_string($function)) {
+        } elseif (is_string($function)) {
             if (function_exists($function)) {
                 return call_user_func_array($function, $args);
-
-            } else if (method_exists($model, $function)) {
+            } elseif (method_exists($model, $function)) {
                 return $model->dispatchMethod($function, $args);
             }
         }
@@ -811,45 +879,44 @@ class BindableBehavior extends ModelBehavior {
     /**
      * Bind file fields
      *
-     * @param $model
-     * @param $data The
+     * @param Model $model Model using the behavior.
+     * @param mixed $data Results of find().
+     * @return mixed
      */
-    protected function bindFile(Model $model, $data = array()) {
+    protected function bindFile(Model $model, $data = [])
+    {
         $modelName = $model->alias;
         if (empty($model->bindFields) || empty($data)) {
             return $data;
         }
 
         // Detect $data array format
+        $tmpData = [];
         if (isset($data[$model->alias][$model->primaryKey])) {
-            $tmpData = array($data);
-
-        } else if (isset($data[$model->alias][0][$model->primaryKey])) {
+            $tmpData = [$data];
+        } elseif (isset($data[$model->alias][0][$model->primaryKey])) {
             foreach ($data[$model->alias] as $i => $_data) {
-                $tmpData[$i] = array($model->alias => $_data);
+                $tmpData[$i] = [$model->alias => $_data];
             }
-
-        } else if (isset($data[$model->primaryKey])) {
-            $tmpData = array(array($model->alias => $data));
-
-        } else if (isset($data[0][$model->primaryKey])) {
+        } elseif (isset($data[$model->primaryKey])) {
+            $tmpData = [[$model->alias => $data]];
+        } elseif (isset($data[0][$model->primaryKey])) {
             foreach ($data as $i => $_data) {
-                $tmpData[$i] = array($model->alias => $_data);
+                $tmpData[$i] = [$model->alias => $_data];
             }
-
         } else {
             $tmpData = $data;
         }
 
-        $bindFields = empty($this->bindFields) ? Set::combine($model->bindFields, '/field' , '/') : $this->bindFields;
+        $bindFields = empty($this->bindFields) ? Set::combine($model->bindFields, '/field', '/') : $this->bindFields;
         $model_ids = Set::extract('/' . $modelName . '/' . $this->runtime[$model->alias]['primaryKey'], $tmpData);
 
         if (!$model_ids) {
             return $data;
         }
 
-        $query = array();
-        $query['fields'] = array(
+        $query = [];
+        $query['fields'] = [
             'id',
             'model',
             'model_id',
@@ -858,29 +925,29 @@ class BindableBehavior extends ModelBehavior {
             'file_content_type',
             'file_size',
             'created',
-            'modified');
+            'modified'];
         // with Object
         if ($this->settings[$model->alias]['withObject']) {
             $query['fields'][] = 'file_object';
         }
 
         $query['recursive'] = -1;
-        $query['conditions'] = array(
+        $query['conditions'] = [
             'model' => $modelName,
-            'model_id' => $model_ids);
+            'model_id' => $model_ids];
 
         // Mongodb.MondodbSource Support
         $dataSource = $this->runtime[$model->alias]['bindedModel']->getDataSource();
         if ($dataSource->config['datasource'] === 'Mongodb.MongodbSource') {
-            $query['conditions'] = array(
+            $query['conditions'] = [
                 'model' => $modelName,
-                'model_id' => array('$in' => $model_ids
-                )
-            );
+                'model_id' => ['$in' => $model_ids,
+                ],
+            ];
         }
 
         $binds = $this->runtime[$model->alias]['bindedModel']->find('all', $query);
-        $binds = Set::combine($binds, array('%1$s.%2$s' , '/' . $this->settings[$model->alias]['model'] . '/model_id', '/' . $this->settings[$model->alias]['model'] . '/field_name'), '/' . $this->settings[$model->alias]['model']);
+        $binds = Set::combine($binds, ['%1$s.%2$s' , '/' . $this->settings[$model->alias]['model'] . '/model_id', '/' . $this->settings[$model->alias]['model'] . '/field_name'], '/' . $this->settings[$model->alias]['model']);
         foreach ($tmpData as $key => $value) {
             if (empty($tmpData[$key][$modelName])) {
                 continue;
@@ -891,7 +958,7 @@ class BindableBehavior extends ModelBehavior {
                     $bind = $binds[$model_id . '.' . $fieldName][$this->settings[$model->alias]['model']];
                     $baseDir = empty($bindFields[$fieldName]['filePath']) ? $this->settings[$model->alias]['filePath'] : $bindFields[$fieldName]['filePath'];
                     if ($baseDir) {
-                        $filePath = $baseDir . $model->transferTo(array_diff_key($bind, Set::normalize(array('file_object'))));
+                        $filePath = $baseDir . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object'])));
                     } else {
                         $filePath = false;
                     }
@@ -934,7 +1001,7 @@ class BindableBehavior extends ModelBehavior {
                             }
 
                             if (file_exists($filePath) && is_file($filePath)) {
-                                @unlink($filePath);
+                                unlink($filePath);
                             }
 
                             if (
@@ -942,6 +1009,7 @@ class BindableBehavior extends ModelBehavior {
                                 || !chmod($filePath, $this->settings[$model->alias]['fileMode'])
                             ) {
                                 umask($currentMask);
+
                                 return false;
                             }
                             umask($currentMask);
@@ -952,38 +1020,30 @@ class BindableBehavior extends ModelBehavior {
                          */
                         $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                         if ($restoreFromStorage && $filePath && $s3Storage) {
-                            if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                            $s3 = $this->_s3Settings($bindFields[$fieldName]);
+                            if (empty($s3['bucket'])) {
                                 //__('Validation Error: S3 Parameter Error');
                                 return false;
                             }
-                            $options = array(
-                                'credentials' => array(
-                                    'key' => Configure::read('Filebinder.S3.key'),
-                                    'secret' => Configure::read('Filebinder.S3.secret'),
-                                ),
-                                'region' => Configure::read('Filebinder.S3.region'),
-                                'version' => 'latest'
-                            );
-                            $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                            if (empty($bucket)) {
-                                //__('Validation Error: S3 Parameter Error');
-                                return false;
-                            }
-                            $s3 = S3Client::factory($options);
-                            $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
 
                             $currentMask = umask();
                             umask(0);
-                            if (!is_dir(dirname($filePath))) {
-                                mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
-                            }
+                            try {
+                                if (!is_dir(dirname($filePath))) {
+                                    mkdir(dirname($filePath), $this->settings[$model->alias]['dirMode'], true);
+                                }
 
-                            $result = $s3->getObject(array(
-                                'Bucket' => $bucket,
-                                'Key' => $urlPrefix . $model->transferTo(array_diff_key($bind, Set::normalize(array('file_object')))),
-                                'SaveAs' => $filePath,
-                            ));
-                            umask($currentMask);
+                                $this->s3Storage($model, $fieldName)->saveAs(
+                                    $s3['bucket'],
+                                    $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
+                                    $filePath,
+                                );
+                                if (is_file($filePath)) {
+                                    chmod($filePath, $this->settings[$model->alias]['fileMode']);
+                                }
+                            } finally {
+                                umask($currentMask);
+                            }
                         }
 
                         if (file_exists($filePath) && is_file($filePath)) {
@@ -991,7 +1051,7 @@ class BindableBehavior extends ModelBehavior {
                              * afterAttach
                              */
                             if (!empty($this->settings[$model->alias]['afterAttach'])) {
-                                $res = $this->_userfunc($model, $this->settings[$model->alias]['afterAttach'], array($filePath));
+                                $res = $this->_userfunc($model, $this->settings[$model->alias]['afterAttach'], [$filePath]);
 
                                 if (!$res) {
                                     return false;
@@ -1009,35 +1069,18 @@ class BindableBehavior extends ModelBehavior {
                          */
                         $s3Storage = in_array(BindableBehavior::STORAGE_S3, (array)$this->settings[$model->alias]['storage']);
                         if ($s3Storage) {
-                            if (!class_exists('Aws\S3\S3Client') || !Configure::read('Filebinder.S3.key') || !Configure::read('Filebinder.S3.secret')) {
+                            $s3 = $this->_s3Settings($bindFields[$fieldName]);
+                            if (empty($s3['bucket'])) {
                                 //__('Validation Error: S3 Parameter Error');
                                 return false;
                             }
-                            $options = array('key' => Configure::read('Filebinder.S3.key'),
-                                'secret' => Configure::read('Filebinder.S3.secret'),
-                            );
-                            $bucket = !empty($bindFields[$fieldName]['bucket']) ? $bindFields[$fieldName]['bucket'] : Configure::read('Filebinder.S3.bucket');
-                            if (empty($bucket)) {
-                                //__('Validation Error: S3 Parameter Error');
-                                return false;
-                            }
-                            $s3 = S3Client::factory($options);
-                            $region = !empty($bindFields[$fieldName]['region']) ? $bindFields[$fieldName]['region'] : Configure::read('Filebinder.S3.region');
-                            if (!empty($region)) {
-                                $s3->setRegion($region);
-                            }
-                            $urlPrefix = !empty($bindFields[$fieldName]['urlPrefix']) ? $bindFields[$fieldName]['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix');
-                            $tmpFilePath = '/tmp/' . sha1(uniqid('', true));
 
-                            $result = $s3->getObject(array(
-                                'Bucket' => $bucket,
-                                'Key' => $urlPrefix . $model->transferTo(array_diff_key($bind, Set::normalize(array('file_object')))),
-                                'SaveAs' => $tmpFilePath,
+                            $tmpData[$key][$modelName][$fieldName]['file_object'] = base64_encode($this->s3Storage($model, $fieldName)->get(
+                                $s3['bucket'],
+                                $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
                             ));
-                            $tmpData[$key][$modelName][$fieldName]['file_object'] = base64_encode(file_get_contents($tmpFilePath));
                         }
                     }
-
                 } else {
                     $tmpData[$key][$modelName][$fieldName] = null;
                 }
@@ -1047,16 +1090,12 @@ class BindableBehavior extends ModelBehavior {
         // Update $data array
         if (isset($data[$model->alias][$model->primaryKey])) {
             $data[$model->alias] = $tmpData[0][$model->alias];
-
-        } else if (isset($data[$model->alias][0][$model->primaryKey])) {
+        } elseif (isset($data[$model->alias][0][$model->primaryKey])) {
             $data[$model->alias] = Set::extract($tmpData, '{n}.' . $model->alias);
-
-        } else if (isset($data[$model->primaryKey])) {
+        } elseif (isset($data[$model->primaryKey])) {
             $data = $tmpData[0][$model->alias];
-
-        } else if (isset($data[0][$model->primaryKey])) {
+        } elseif (isset($data[0][$model->primaryKey])) {
             $data = Set::extract($tmpData, '{n}.' . $model->alias);
-
         } else {
             $data = $tmpData;
         }

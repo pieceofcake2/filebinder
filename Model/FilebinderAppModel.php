@@ -1,4 +1,4 @@
 <?php
-class FilebinderAppModel extends AppModel {
+class FilebinderAppModel extends AppModel
+{
 }
-

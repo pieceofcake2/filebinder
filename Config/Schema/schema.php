@@ -1,11 +1,24 @@
-<?php 
-class FilebinderSchema extends CakeSchema {
+<?php
+class FilebinderSchema extends CakeSchema
+{
+    /**
+     * Before callback
+     *
+     * @param array $event Schema object properties.
+     * @return bool
+     */
+    public function before($event = [])
+    {
+        return true;
+    }
 
-	public function before($event = array()) {
-		return true;
-	}
-
-	public function after($event = array()) {
-	}
-
+    /**
+     * After callback
+     *
+     * @param array $event Schema object properties.
+     * @return void
+     */
+    public function after($event = [])
+    {
+    }
 }
