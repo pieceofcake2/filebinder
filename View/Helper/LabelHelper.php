@@ -9,7 +9,6 @@ App::uses('FilebinderS3StorageFactory', 'Filebinder.Storage');
  * Renders an image, a link or a URL of a file attached with the Bindable behavior.
  *
  * @property HtmlHelper $Html
- * @property SessionHelper $Session
  */
 class LabelHelper extends AppHelper
 {
@@ -18,18 +17,7 @@ class LabelHelper extends AppHelper
      *
      * @var array
      */
-    public $helpers = ['Html', 'Session'];
-
-    /**
-     * Settings
-     *
-     * - `sessionKey`: Session key of the plugin (no longer used: the loader URLs are signed with `FilebinderSignature`).
-     *
-     * @var array
-     */
-    public $settings = [
-        'sessionKey' => 'Filebinder',
-    ];
+    public $helpers = ['Html'];
 
     /**
      * S3 storages of the S3 URLs by client options, created when they are first used

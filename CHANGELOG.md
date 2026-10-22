@@ -98,5 +98,7 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
 
 ### Other
 
+- `LabelHelper` no longer has the `sessionKey` setting, which only named the session key of the
+  removed secret, and no longer loads the Session helper. A `sessionKey` setting is ignored
 - PHPUnit 9.6 tests (with mocked S3 clients), PHP_CodeSniffer and PHPStan (level 5) in CI
 - Documentation in English and Japanese

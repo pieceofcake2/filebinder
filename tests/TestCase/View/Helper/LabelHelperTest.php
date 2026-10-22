@@ -1,7 +1,6 @@
 <?php
 
 App::uses('View', 'View');
-App::uses('SessionHelper', 'View/Helper');
 App::uses('LabelHelper', 'Filebinder.View/Helper');
 App::uses('FilebinderSignature', 'Filebinder.Lib');
 
@@ -112,6 +111,24 @@ class LabelHelperTest extends CakeTestCase
         $this->expectException(CakeException::class);
         $this->expectExceptionMessage('You cannot sign the URLs of Filebinder with an empty Security.salt.');
         $this->Label->_makeSrc($file);
+    }
+
+    /**
+     * The sessionKey setting, which the helper no longer uses, is ignored.
+     */
+    public function testSessionKeyIgnored(): void
+    {
+        $Label = new LabelHelper($this->View, ['sessionKey' => 'Other']);
+        $file = [
+            'file_path' => WWW_ROOT . 'files/FilebinderPost/1/logo/logo.png',
+            'model' => 'FilebinderPost',
+            'model_id' => '1',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+        ];
+
+        $this->assertSame('/files/FilebinderPost/1/logo/logo.png', $Label->url($file));
+        $this->assertSame(['Html'], $Label->helpers);
     }
 
     /**

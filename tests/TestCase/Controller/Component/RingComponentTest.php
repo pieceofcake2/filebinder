@@ -73,7 +73,7 @@ class RingComponentTest extends CakeTestCase
         $this->Controller->Components->init($this->Controller);
         $this->Controller->Ring->startup($this->Controller);
 
-        $this->assertSame(['sessionKey' => 'Filebinder'], $this->Controller->helpers['Filebinder.Label']);
+        $this->assertSame([], $this->Controller->helpers['Filebinder.Label']);
     }
 
     /**

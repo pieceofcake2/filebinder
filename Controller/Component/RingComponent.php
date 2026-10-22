@@ -61,7 +61,7 @@ class RingComponent extends Component
      */
     public function startUp(Controller $controller)
     {
-        $controller->helpers['Filebinder.Label'] = ['sessionKey' => self::$sessionKey];
+        $controller->helpers['Filebinder.Label'] = [];
     }
 
     /**
