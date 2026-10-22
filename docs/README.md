@@ -380,8 +380,8 @@ The client of the loaded plugin is used, `Aws` when both are loaded. Choose it w
 Configure::write('Filebinder.S3.client', 'AsyncAws');
 ```
 
-When no plugin is loaded but the AWS SDK for PHP is installed, the AWS SDK is used. When no client
-can be used, saving a file throws a `FilebinderS3StorageException` that says what to install.
+The plugin must be loaded, also when the AWS SDK for PHP is installed. When no client can be used,
+saving a file throws a `FilebinderS3StorageException` that says what to install and load.
 
 ### Configuration
 
@@ -456,8 +456,10 @@ URLs are the same.
 
 Changes in behavior:
 
-- Without an S3 client, saving a file to S3 throws a `FilebinderS3StorageException`. Before, the
-  file was saved locally, and `afterSave()` returned `false` without uploading it.
+- The S3 storage needs pieceofcake2/aws (or pieceofcake2/async-aws), installed and loaded with
+  `CakePlugin::load()`; the AWS SDK alone is not enough. Without it, saving a file to S3 throws a
+  `FilebinderS3StorageException`. Before, the file was saved locally, and `afterSave()` returned
+  `false` without uploading it.
 - Without `Filebinder.S3.key` and `Filebinder.S3.secret`, the files are uploaded with the
   credentials of the plugin configuration or the default credentials. Before, they were not
   uploaded.

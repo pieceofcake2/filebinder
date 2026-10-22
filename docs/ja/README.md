@@ -403,9 +403,9 @@ CakePlugin::load('AsyncAws');
 Configure::write('Filebinder.S3.client', 'AsyncAws');
 ```
 
-どちらのプラグインも読み込んでいなくても、AWS SDK for PHP がインストールされていれば AWS SDK を
-使います。使えるクライアントがないと、ファイルを保存するときに、インストールするパッケージを示す
-`FilebinderS3StorageException` が発生します。
+AWS SDK for PHP がインストールされていても、プラグインの読み込みは必要です。使えるクライアントがないと、
+ファイルを保存するときに、インストールして読み込むパッケージを示す `FilebinderS3StorageException` が
+発生します。
 
 <a id="configuration"></a>
 
@@ -486,8 +486,10 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 
 動作の変更:
 
-- S3 クライアントがないと、S3 へのファイルの保存で `FilebinderS3StorageException` が発生します。
-  以前は、ファイルをローカルに保存し、アップロードせずに `afterSave()` が `false` を返していました。
+- S3 のストレージには、pieceofcake2/aws (または pieceofcake2/async-aws) をインストールし、
+  `CakePlugin::load()` で読み込む必要があります。AWS SDK だけでは使えません。プラグインがないと、
+  S3 へのファイルの保存で `FilebinderS3StorageException` が発生します。以前は、ファイルをローカルに
+  保存し、アップロードせずに `afterSave()` が `false` を返していました。
 - `Filebinder.S3.key` と `Filebinder.S3.secret` がなくても、プラグインの設定かデフォルトの認証情報で
   ファイルをアップロードします。以前はアップロードしませんでした。
 - フィールドの `region` を、そのフィールドのすべての S3 リクエストで使います。

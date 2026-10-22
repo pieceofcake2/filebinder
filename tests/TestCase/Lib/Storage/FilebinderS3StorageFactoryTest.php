@@ -63,7 +63,7 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
     }
 
     /**
-     * AsyncAws is used when only its plugin is loaded and the AWS SDK is not installed.
+     * AsyncAws is used when only its plugin is loaded, also when the AWS SDK is installed.
      */
     public function testAsyncAwsPluginLoaded(): void
     {
@@ -74,28 +74,16 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
     }
 
     /**
-     * Without the plugins, the AWS SDK is used when it is installed, as fusic/filebinder used it.
+     * Without the plugins, the exception says what to install and load, also when the AWS SDK is installed.
      */
-    public function testAwsSdkWithoutPlugins(): void
-    {
-        CakePlugin::unload('Aws');
-        CakePlugin::unload('AsyncAws');
-
-        $this->assertSame('Aws', FilebinderS3StorageFactory::client());
-        $this->assertInstanceOf(FilebinderAwsS3Storage::class, FilebinderS3StorageFactory::create());
-    }
-
-    /**
-     * Without the plugins and the AWS SDK, the exception says what to install.
-     */
-    public function testNoClient(): void
+    public function testNoPlugin(): void
     {
         CakePlugin::unload('Aws');
         CakePlugin::unload('AsyncAws');
 
         $this->expectException(FilebinderS3StorageException::class);
-        $this->expectExceptionMessage('The S3 storage of Filebinder requires pieceofcake2/aws or pieceofcake2/async-aws. Install one with: composer require pieceofcake2/aws');
-        FilebinderS3StorageFactoryWithoutClients::client();
+        $this->expectExceptionMessage("The S3 storage of Filebinder requires pieceofcake2/aws or pieceofcake2/async-aws. Install one with: composer require pieceofcake2/aws (or: composer require pieceofcake2/async-aws async-aws/simple-s3), and load it with CakePlugin::load('Aws') (or CakePlugin::load('AsyncAws')).");
+        FilebinderS3StorageFactory::client();
     }
 
     /**
@@ -113,27 +101,16 @@ class FilebinderS3StorageFactoryTest extends CakeTestCase
     }
 
     /**
-     * The Aws client needs only the AWS SDK.
+     * The Aws client needs its plugin, also when the AWS SDK is installed.
      */
     public function testConfiguredAwsWithoutPlugin(): void
     {
         CakePlugin::unload('Aws');
         Configure::write('Filebinder.S3.client', 'Aws');
 
-        $this->assertSame('Aws', FilebinderS3StorageFactory::client());
-    }
-
-    /**
-     * The Aws client without the AWS SDK.
-     */
-    public function testConfiguredAwsNotInstalled(): void
-    {
-        CakePlugin::unload('Aws');
-        Configure::write('Filebinder.S3.client', 'Aws');
-
         $this->expectException(FilebinderS3StorageException::class);
         $this->expectExceptionMessage("The Aws client of the Filebinder S3 storage requires the Aws plugin. Install it with: composer require pieceofcake2/aws, and load it with CakePlugin::load('Aws').");
-        FilebinderS3StorageFactoryWithoutClients::client();
+        FilebinderS3StorageFactory::client();
     }
 
     /**

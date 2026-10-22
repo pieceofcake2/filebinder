@@ -14,12 +14,8 @@ App::uses('FilebinderAsyncAwsS3Storage', 'Filebinder.Storage');
  * - `'Aws'`: the AWS SDK for PHP with pieceofcake2/aws (`FilebinderAwsS3Storage`)
  * - `'AsyncAws'`: AsyncAws with pieceofcake2/async-aws and async-aws/simple-s3 (`FilebinderAsyncAwsS3Storage`)
  *
- * When it is not set, the client of the plugin that is loaded is used, `Aws` when both are loaded. When neither
- * plugin is loaded but the AWS SDK for PHP is installed, as fusic/filebinder required it, the AWS SDK is used.
- *
- * `FilebinderAwsS3Storage` needs only the AWS SDK for PHP and the `Aws` configuration, so the `Aws` client
- * does not require the Aws plugin to be loaded. `FilebinderAsyncAwsS3Storage` uses the classes of the AsyncAws
- * plugin, which must be loaded.
+ * When it is not set, the client of the plugin that is loaded is used, `Aws` when both are loaded. The plugin of
+ * the client must be loaded.
  */
 class FilebinderS3StorageFactory
 {
@@ -41,14 +37,13 @@ class FilebinderS3StorageFactory
      * Storage classes, plugins and client classes (with their Composer package) of the clients, in the order of
      * the automatic choice.
      *
-     * @var array<string, array{storage: string, plugin: string, package: string, pluginRequired: bool, class: string, classPackage: string}>
+     * @var array<string, array{storage: string, plugin: string, package: string, class: string, classPackage: string}>
      */
     private const CLIENTS = [
         self::CLIENT_AWS => [
             'storage' => FilebinderAwsS3Storage::class,
             'plugin' => 'Aws',
             'package' => 'pieceofcake2/aws',
-            'pluginRequired' => false,
             'class' => 'Aws\S3\S3Client',
             'classPackage' => 'aws/aws-sdk-php',
         ],
@@ -56,7 +51,6 @@ class FilebinderS3StorageFactory
             'storage' => FilebinderAsyncAwsS3Storage::class,
             'plugin' => 'AsyncAws',
             'package' => 'pieceofcake2/async-aws',
-            'pluginRequired' => true,
             'class' => 'AsyncAws\SimpleS3\SimpleS3Client',
             'classPackage' => 'async-aws/simple-s3',
         ],
@@ -77,8 +71,7 @@ class FilebinderS3StorageFactory
     }
 
     /**
-     * Returns the client to use: `Filebinder.S3.client`, the first client whose plugin is loaded, or `Aws` when
-     * the AWS SDK for PHP is installed.
+     * Returns the client to use: `Filebinder.S3.client`, or the first client whose plugin is loaded.
      *
      * @return string `Aws` or `AsyncAws`.
      * @throws \FilebinderS3StorageException When `Filebinder.S3.client` is unknown, when its plugin is not loaded or
@@ -108,10 +101,6 @@ class FilebinderS3StorageFactory
                 return $client;
             }
         }
-        if (class_exists($clients[self::CLIENT_AWS]['class'])) {
-            return self::CLIENT_AWS;
-        }
-
         throw new FilebinderS3StorageException(
             'The S3 storage of Filebinder requires pieceofcake2/aws or pieceofcake2/async-aws. ' .
             'Install one with: composer require pieceofcake2/aws (or: composer require pieceofcake2/async-aws ' .
@@ -123,7 +112,7 @@ class FilebinderS3StorageFactory
      * Returns the storage classes, plugins and client classes (with their Composer package) of the clients, in the
      * order of the automatic choice.
      *
-     * @return array<string, array{storage: string, plugin: string, package: string, pluginRequired: bool, class: string, classPackage: string}>
+     * @return array<string, array{storage: string, plugin: string, package: string, class: string, classPackage: string}>
      */
     protected static function clients(): array
     {
@@ -131,7 +120,7 @@ class FilebinderS3StorageFactory
     }
 
     /**
-     * Checks that the S3 client of a client is installed, and that its plugin is loaded when the storage needs it.
+     * Checks that the plugin of a client is loaded and that its S3 client is installed.
      *
      * @param string $client `Aws` or `AsyncAws`.
      * @return void
@@ -140,7 +129,7 @@ class FilebinderS3StorageFactory
     protected static function check(string $client): void
     {
         $config = static::clients()[$client];
-        if (!CakePlugin::loaded($config['plugin']) && ($config['pluginRequired'] || !class_exists($config['class']))) {
+        if (!CakePlugin::loaded($config['plugin'])) {
             throw new FilebinderS3StorageException(sprintf(
                 'The %s client of the Filebinder S3 storage requires the %s plugin. Install it with: ' .
                 'composer require %s, and load it with CakePlugin::load(\'%s\').',

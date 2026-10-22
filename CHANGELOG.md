@@ -19,9 +19,9 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   SDK for PHP of pieceofcake2/aws) and `FilebinderAsyncAwsS3Storage` (AsyncAws of
   pieceofcake2/async-aws)
 - New `Filebinder.S3.client` setting (`'Aws'` or `'AsyncAws'`). When it is not set, the client of
-  the loaded plugin is used, `Aws` when both are loaded; when neither plugin is loaded, the AWS SDK
-  is used if it is installed. Otherwise saving to S3 throws a `FilebinderS3StorageException` that
-  names the package to install (it returned `false` before, without uploading)
+  the loaded plugin is used, `Aws` when both are loaded. The plugin must be loaded, also when the
+  AWS SDK for PHP is installed: without it, saving to S3 throws a `FilebinderS3StorageException` that
+  names the package to install and load (it returned `false` before, without uploading)
 - The S3 clients are configured with the `Aws` configuration of pieceofcake2/aws, or the
   `AsyncAws` configuration of pieceofcake2/async-aws, so the credentials can come from the
   environment, an IAM role, etc. `Filebinder.S3.key`, `Filebinder.S3.secret` and
