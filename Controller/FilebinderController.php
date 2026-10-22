@@ -41,7 +41,11 @@ class FilebinderController extends FilebinderAppController
             throw new NotFoundException(__('Invalid access'));
         }
 
+        // A URL signed without a secret could be made by anyone
         $secret = $this->Session->read('Filebinder.secret');
+        if (!is_string($secret) || $secret === '') {
+            throw new NotFoundException(__('Invalid access'));
+        }
 
         // The key signs the file name too; a URL without a file name has the key of an empty file name.
         $expected = Security::hash($model . $model_id . $fieldName . (string)$fileName . $secret . $expire);

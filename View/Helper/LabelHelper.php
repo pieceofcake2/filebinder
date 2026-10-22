@@ -1,5 +1,6 @@
 <?php
 App::uses('AppHelper', 'View/Helper');
+App::uses('FilebinderSecret', 'Filebinder.Lib');
 
 /**
  * Label Helper
@@ -90,7 +91,6 @@ class LabelHelper extends AppHelper
      */
     public function _makeSrc($file = null, $options = []) // phpcs:ignore CakePHP.NamingConventions.ValidFunctionName.PublicWithUnderscore
     {
-        $secret = $this->Session->read($this->settings['sessionKey'] . '.secret');
         $prefix = empty($options['prefix']) ? '' : $options['prefix'];
 
         /**
@@ -133,6 +133,7 @@ class LabelHelper extends AppHelper
 
         $expire = Configure::read('Filebinder.expire') ? strtotime(Configure::read('Filebinder.expire')) : strtotime('+1 minute');
 
+        $secret = FilebinderSecret::get($this->settings['sessionKey']);
         $key = Security::hash($file['model'] . $file['model_id'] . $file['field_name'] . $prefix . $file['file_name'] . $secret . $expire);
 
         $url = array_merge($url, [

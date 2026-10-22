@@ -71,6 +71,34 @@ class LabelHelperTest extends CakeTestCase
     }
 
     /**
+     * Without a secret in the session, the helper creates one, as RingComponent does.
+     */
+    public function testMakeSrcCreatesSecret(): void
+    {
+        CakeSession::delete('Filebinder');
+        $file = [
+            'file_path' => TMP . 'files/FilebinderPost/1/logo/logo.png',
+            'model' => 'FilebinderPost',
+            'model_id' => '1',
+            'field_name' => 'logo',
+            'file_name' => 'logo.png',
+        ];
+
+        $result = $this->Label->_makeSrc($file);
+
+        $secret = CakeSession::read('Filebinder.secret');
+        $this->assertMatchesRegularExpression('/\A[0-9a-f]{64}\z/', $secret);
+        $this->assertSame(Security::hash('FilebinderPost1logologo.png' . $secret . $result['?']['expire']), $result['?']['key']);
+        $this->Label->_makeSrc($file);
+        $this->assertSame($secret, CakeSession::read('Filebinder.secret'));
+
+        CakeSession::delete('Filebinder');
+        Configure::write('Filebinder.secret', 'configured secret');
+        $this->Label->_makeSrc($file);
+        $this->assertSame('configured secret', CakeSession::read('Filebinder.secret'));
+    }
+
+    /**
      * No file, no source.
      */
     public function testMakeSrcNoFile(): void

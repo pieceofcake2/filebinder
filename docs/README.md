@@ -304,7 +304,8 @@ under the webroot has its path as URL. Other files, and the uploaded files of a 
 are sent by the `loader` action of the plugin, with a signed URL that expires after one minute
 (`Filebinder.expire`, e.g. `'+10 minutes'`). The key signs the model, the ID, the field and the
 file name with a secret kept in the session: `Filebinder.secret` when it is set, otherwise a
-random value created by the Ring component for each session.
+random value created for each session by the Ring component or the Label helper. Without a
+secret in the session, the loader answers 404.
 
 | Option | Description |
 | --- | --- |
@@ -472,7 +473,8 @@ Changes in behavior:
   working if they have a file name, as the URLs of `LabelHelper` do; they are short-lived
   (`Filebinder.expire`, one minute by default), so reload the pages that show them.
 - The loader sends only the files inside the tmp directory for the uploaded files (model ID `0`).
-- Without `Filebinder.secret`, the secret of the loader URLs is random.
+- Without `Filebinder.secret`, the secret of the loader URLs is random. The Label helper creates it
+  when the Ring component is not used, and the loader answers 404 when the session has no secret.
 - The `Content-Disposition` header of the loader has no quotes or control characters in the quoted
   file name, and has the full name in `filename*`.
 

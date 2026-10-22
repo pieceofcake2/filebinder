@@ -45,6 +45,9 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   (one minute by default). URLs without a file name keep their key
 - Without `Filebinder.secret`, the secret of the loader URLs was `Security::hash(time())`, which
   anyone can compute. It is now created with `random_bytes()`
+- The Label helper used without the Ring component signed the loader URLs with an empty secret, so
+  anyone could make them. The helper now creates the secret of the session as the Ring component
+  does, and the loader rejects the URLs when the session has no secret
 - The file name in the `Content-Disposition` header of the loader was not escaped. Quotes,
   backslashes and control characters are removed from the quoted name, and the full name is sent
   in `filename*` (except to MSIE, which gets the Shift_JIS name as before)

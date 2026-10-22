@@ -321,7 +321,8 @@ echo $this->Label->url($post['Post']['image']);
 ファイルは、プラグインの `loader` アクションが送ります。URL には署名があり、1 分で期限が切れます
 (`Filebinder.expire` で変更できます。例: `'+10 minutes'`)。署名の対象はモデル、ID、フィールド、
 ファイル名で、セッションに保存した秘密の値を使います。`Filebinder.secret` を設定した場合はその値、
-設定しない場合は Ring コンポーネントがセッションごとに作るランダムな値です。
+設定しない場合は Ring コンポーネントか Label ヘルパーがセッションごとに作るランダムな値です。
+セッションに秘密の値がなければ、loader は 404 を返します。
 
 | オプション | 説明 |
 | --- | --- |
@@ -503,7 +504,9 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
   (`Filebinder.expire`、デフォルトは 1 分) ので、その URL を表示しているページは再読み込みしてください。
 - アップロードされたファイル (モデル ID `0`) について、loader は tmp ディレクトリの中のファイルだけを
   送ります。
-- `Filebinder.secret` を設定しない場合、loader の URL の秘密の値はランダムになります。
+- `Filebinder.secret` を設定しない場合、loader の URL の秘密の値はランダムになります。Ring
+  コンポーネントを使わない場合は Label ヘルパーが作ります。セッションに秘密の値がなければ、loader は
+  404 を返します。
 - loader の `Content-Disposition` ヘッダーでは、引用符で囲んだファイル名から引用符と制御文字を除き、
   ファイル名全体を `filename*` に入れます。
 

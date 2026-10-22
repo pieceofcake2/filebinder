@@ -161,6 +161,22 @@ class FilebinderControllerTest extends CakeTestCase
     }
 
     /**
+     * loader() rejects a URL signed without a secret, when the session has none.
+     */
+    public function testLoaderWithoutSecret(): void
+    {
+        CakeSession::delete('Filebinder');
+        $expire = strtotime('+1 minute');
+        $this->Controller->request->query = [
+            'key' => Security::hash('FilebinderPost1logologo.png' . $expire),
+            'expire' => (string)$expire,
+        ];
+
+        $this->expectException(NotFoundException::class);
+        $this->_load('FilebinderPost', '1', 'logo', 'logo.png');
+    }
+
+    /**
      * loader() rejects an expired URL.
      */
     public function testLoaderExpired(): void

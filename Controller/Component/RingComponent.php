@@ -1,5 +1,6 @@
 <?php
 App::uses('Security', 'Utility');
+App::uses('FilebinderSecret', 'Filebinder.Lib');
 
 /**
  * Ring Component
@@ -61,13 +62,7 @@ class RingComponent extends Component
     public function startUp(Controller $controller)
     {
         $controller->helpers['Filebinder.Label'] = ['sessionKey' => self::$sessionKey];
-        if (!$this->Session->read(self::$sessionKey . '.secret')) {
-            if (Configure::read('Filebinder.secret')) {
-                $this->Session->write(self::$sessionKey . '.secret', Configure::read('Filebinder.secret'));
-            } else {
-                $this->Session->write(self::$sessionKey . '.secret', bin2hex(random_bytes(32)));
-            }
-        }
+        FilebinderSecret::get(self::$sessionKey);
     }
 
     /**
