@@ -320,6 +320,91 @@ class BindableBehaviorS3Test extends CakeTestCase
     }
 
     /**
+     * A file restored from S3 is saved in directories created with dirMode.
+     */
+    public function testRestoreS3CreatesDirectories(): void
+    {
+        Configure::write('Filebinder.S3.client', 'AsyncAws');
+        $this->FilebinderPost->setSettings(['storage' => BindableBehavior::STORAGE_S3, 'dirMode' => 0750]);
+        $result = $this->_saveLogo();
+        $filePath = $result['FilebinderPost']['logo']['file_path'];
+        (new Folder($this->filePath . 'FilebinderPost'))->delete();
+
+        $this->asyncAwsResponses[] = new MockResponse('restored');
+        $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $result['FilebinderPost']['id']]]);
+
+        $this->assertStringEqualsFile($filePath, 'restored');
+        clearstatcache();
+        $this->assertSame(0750, fileperms(dirname($filePath)) & 0777);
+        $this->assertSame(0750, fileperms($this->filePath . 'FilebinderPost') & 0777);
+    }
+
+    /**
+     * An error of S3 while a file is restored is thrown, and the umask is restored.
+     */
+    public function testRestoreS3Error(): void
+    {
+        $this->FilebinderPost->setSettings(['storage' => BindableBehavior::STORAGE_S3]);
+        $result = $this->_saveLogo();
+        unlink($result['FilebinderPost']['logo']['file_path']);
+        $this->awsResults[] = fn($command) => new S3Exception('Access Denied', $command);
+        $umask = umask();
+
+        try {
+            $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $result['FilebinderPost']['id']]]);
+            $this->fail('No exception was thrown.');
+        } catch (S3Exception $e) {
+            $this->assertSame('Access Denied', $e->getMessage());
+        }
+        $this->assertSame($umask, umask());
+    }
+
+    /**
+     * withObject returns the contents of the database without downloading the file from S3.
+     */
+    public function testFindWithObjectFromDatabase(): void
+    {
+        $id = $this->_saveLogo()['FilebinderPost']['id'];
+
+        $this->FilebinderPost->withObject(true);
+        $result = $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $id]]);
+
+        $this->assertSame(['PutObject'], $this->awsCommandNames());
+        $this->assertSame(base64_encode((string)file_get_contents($this->_testFile())), $result['FilebinderPost']['logo']['file_object']);
+    }
+
+    /**
+     * The files of the fields are uploaded to and deleted from the bucket of each field.
+     */
+    public function testSeveralFieldsS3(): void
+    {
+        $this->FilebinderPost->bindFields[] = ['field' => 'image', 'filePath' => $this->filePath, 'bucket' => 'image-bucket', 'urlPrefix' => 'images/'];
+        $id = $this->_saveLogo()['FilebinderPost']['id'];
+        copy($this->_testFile(), $this->tmpPath);
+        $this->FilebinderPost->save(['FilebinderPost' => [
+            'id' => $id,
+            'image' => [
+                'model' => 'FilebinderPost',
+                'field_name' => 'image',
+                'file_name' => 'image.png',
+                'file_size' => 1395,
+                'tmp_bind_path' => $this->tmpPath,
+            ],
+        ]]);
+        $command = $this->lastAwsCommand();
+        $this->assertSame(['PutObject', 'image-bucket', 'images/FilebinderPost/' . $id . '/image/image.png', 'public-read'], [$command['command'], $command['params']['Bucket'], $command['params']['Key'], $command['params']['ACL']]);
+
+        $this->awsCommands = [];
+        $this->FilebinderPost->delete($id);
+
+        $deleted = array_map(fn($command) => [$command['command'], $command['params']['Bucket'], $command['params']['Key']], $this->awsCommands);
+        $this->assertEqualsCanonicalizing([
+            ['DeleteObject', 'my-bucket', 'FilebinderPost/' . $id . '/logo/logo.png'],
+            ['DeleteObject', 'image-bucket', 'images/FilebinderPost/' . $id . '/image/image.png'],
+        ], $deleted);
+    }
+
+    /**
      * s3Storage() returns the S3 storage of a field.
      */
     public function testS3Storage(): void
