@@ -118,6 +118,21 @@ class FilebinderAwsS3StorageTest extends CakeTestCase
     }
 
     /**
+     * presignedUrl() returns a URL signed for GetObject that expires at the time.
+     */
+    public function testPresignedUrl(): void
+    {
+        $url = (new FilebinderAwsS3Storage())->presignedUrl('my-bucket', 'files/a b.txt', new DateTimeImmutable('+10 minutes'));
+
+        $this->assertStringStartsWith('https://my-bucket.s3.ap-northeast-1.amazonaws.com/files/a%20b.txt?', $url);
+        parse_str((string)parse_url($url, PHP_URL_QUERY), $query);
+        $this->assertSame('AWS4-HMAC-SHA256', $query['X-Amz-Algorithm']);
+        $this->assertStringStartsWith('aws-key/', $query['X-Amz-Credential']);
+        $this->assertMatchesRegularExpression('/\\A[0-9a-f]{64}\\z/', $query['X-Amz-Signature']);
+        $this->assertEqualsWithDelta(600, (int)$query['X-Amz-Expires'], 5);
+    }
+
+    /**
      * The errors of the SDK are thrown.
      */
     public function testError(): void

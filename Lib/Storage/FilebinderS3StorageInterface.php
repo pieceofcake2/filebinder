@@ -56,4 +56,14 @@ interface FilebinderS3StorageInterface
      * @return string
      */
     public function url(string $bucket, string $key): string;
+
+    /**
+     * Returns a presigned URL to download an object, for an object that is not public.
+     *
+     * @param string $bucket Bucket.
+     * @param string $key Object key.
+     * @param \DateTimeImmutable $expires Expiration time.
+     * @return string
+     */
+    public function presignedUrl(string $bucket, string $key, DateTimeImmutable $expires): string;
 }

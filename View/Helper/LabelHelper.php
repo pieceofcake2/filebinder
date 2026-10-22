@@ -32,11 +32,11 @@ class LabelHelper extends AppHelper
     ];
 
     /**
-     * S3 storage of the S3 URLs, created when it is first used
+     * S3 storages of the S3 URLs by client options, created when they are first used
      *
-     * @var \FilebinderS3StorageInterface|null
+     * @var array<string, \FilebinderS3StorageInterface>
      */
-    protected $_s3Storage;
+    protected $_s3Storages = [];
 
     /**
      * Returns an image tag of the file, or `$options['noFile']` when there is no file.
@@ -139,7 +139,7 @@ class LabelHelper extends AppHelper
             $url[$p] = false;
         }
 
-        $expire = Configure::read('Filebinder.expire') ? strtotime(Configure::read('Filebinder.expire')) : strtotime('+1 minute');
+        $expire = $this->_expire();
 
         $secret = FilebinderSecret::get($this->settings['sessionKey']);
         $key = Security::hash($file['model'] . $file['model_id'] . $file['field_name'] . $prefix . $file['file_name'] . $secret . $expire);
@@ -159,8 +159,13 @@ class LabelHelper extends AppHelper
     }
 
     /**
-     * Returns the URL of the file on Amazon S3, in the bucket `Filebinder.S3.bucket`, as the S3 client builds it
-     * (`url()` of the S3 storage, with the region or the endpoint of the configuration).
+     * Returns the URL of the file on Amazon S3, as the S3 client builds it with the region or the endpoint of the
+     * configuration.
+     *
+     * The bucket, the ACL, the key prefix and the region are those of the bound field (in `$bindFields` of the
+     * model), or of `Filebinder.S3`. A file with a public ACL (`public-read`, `public-read-write`) gets its URL; a
+     * file with another ACL (e.g. `private`) gets a presigned URL that expires as the loader URLs
+     * (`Filebinder.expire`, one minute by default).
      *
      * @param array|null $file File data of a bound field.
      * @param array $options Options: `prefix` and `url_prefix`.
@@ -169,18 +174,71 @@ class LabelHelper extends AppHelper
      */
     public function _makeS3Url($file, $options) // phpcs:ignore CakePHP.NamingConventions.ValidFunctionName.PublicWithUnderscore
     {
-        $bucket = Configure::read('Filebinder.S3.bucket');
-        if (empty($file['model']) || empty($bucket)) {
+        if (empty($file['model'])) {
+            return null;
+        }
+        $field = $this->_bindField($file);
+        $s3 = FilebinderS3StorageFactory::fieldSettings($field);
+        if (empty($s3['bucket'])) {
             return null;
         }
         $prefix = empty($options['prefix']) ? '' : $options['prefix'];
-        $urlPrefix = !empty($options['url_prefix']) ? $options['url_prefix'] : Configure::read('Filebinder.S3.urlPrefix');
+        $urlPrefix = !empty($options['url_prefix']) ? $options['url_prefix'] : $s3['urlPrefix'];
         $key = $urlPrefix . $file['model'] . '/' . $file['model_id'] . '/' . $file['field_name'] . '/' . $prefix . $file['file_name'];
 
-        if ($this->_s3Storage === null) {
-            $this->_s3Storage = FilebinderS3StorageFactory::create(FilebinderS3StorageFactory::fieldArgs());
+        $args = FilebinderS3StorageFactory::fieldArgs($field);
+        $cacheKey = (string)json_encode($args);
+        if (!isset($this->_s3Storages[$cacheKey])) {
+            $this->_s3Storages[$cacheKey] = FilebinderS3StorageFactory::create($args);
+        }
+        $storage = $this->_s3Storages[$cacheKey];
+
+        if (in_array($s3['acl'], FilebinderS3StorageFactory::PUBLIC_ACLS, true)) {
+            return $storage->url($s3['bucket'], $key);
         }
 
-        return $this->_s3Storage->url($bucket, $key);
+        return $storage->presignedUrl($s3['bucket'], $key, new DateTimeImmutable('@' . $this->_expire()));
+    }
+
+    /**
+     * Returns the settings of the bound field of the file data, from `$bindFields` of its model.
+     *
+     * @param array $file File data of a bound field.
+     * @return array
+     */
+    protected function _bindField(array $file)
+    {
+        $name = $file['model'];
+        if (empty($file['field_name']) || !is_string($name)) {
+            return [];
+        }
+        if (!ClassRegistry::isKeySet($name)) {
+            // Do not create a model for a name that has no model class
+            App::uses($name, 'Model');
+            if (!class_exists($name)) {
+                return [];
+            }
+        }
+        $model = ClassRegistry::init($name);
+        if (!$model instanceof Model) {
+            return [];
+        }
+        foreach ((array)$model->bindFields as $bindField) {
+            if (isset($bindField['field']) && $bindField['field'] === $file['field_name']) {
+                return (array)$bindField;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Returns the expiration time of the URLs: `Filebinder.expire` (a `strtotime()` time), or in one minute.
+     *
+     * @return int
+     */
+    protected function _expire()
+    {
+        return Configure::read('Filebinder.expire') ? (int)strtotime(Configure::read('Filebinder.expire')) : (int)strtotime('+1 minute');
     }
 }

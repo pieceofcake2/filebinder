@@ -110,6 +110,14 @@ class FilebinderAsyncAwsS3Storage implements FilebinderS3StorageInterface
     }
 
     /**
+     * @inheritDoc
+     */
+    public function presignedUrl(string $bucket, string $key, DateTimeImmutable $expires): string
+    {
+        return $this->storage->presignedUrl(static::path($bucket, $key), $expires);
+    }
+
+    /**
      * Returns the Content-Type of a file, detected from its contents with the fileinfo extension.
      *
      * AsyncAws does not detect the Content-Type, and S3 serves an object without it as `binary/octet-stream`.

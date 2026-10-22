@@ -299,23 +299,54 @@ echo $this->Label->link($post['Post']['image'], ['title' => 'Download']);
 echo $this->Label->url($post['Post']['image']);
 ```
 
-`image()`, `link()` and `url()` return `noFile` (or an empty string) when there is no file. A file
-under the webroot has its path as URL. Other files, and the uploaded files of a confirmation page,
-are sent by the `loader` action of the plugin, with a signed URL that expires after one minute
-(`Filebinder.expire`, e.g. `'+10 minutes'`). The key signs the model, the ID, the field and the
-file name with a secret kept in the session: `Filebinder.secret` when it is set, otherwise a
-random value created for each session by the Ring component or the Label helper. Without a
-secret in the session, the loader answers 404.
+`image()`, `link()` and `url()` return `noFile` (or an empty string) when there is no file.
 
 | Option | Description |
 | --- | --- |
 | `prefix` | Prefix of the file name, e.g. `thumb_` for a thumbnail saved next to the file. |
 | `noFile` | Returned when there is no file. |
 | `title` | Text of the link of `link()`. Default: the file name. |
-| `S3` (or `s3`) | Return the URL of the file `<urlPrefix><model>/<model_id>/<field_name>/<file_name>` in the bucket `Filebinder.S3.bucket`, as the [S3 client](#s3-client) builds it with its region or endpoint, e.g. `https://<bucket>.s3.<region>.amazonaws.com/<key>`. |
-| `url_prefix` | With `S3`, the prefix of the key. Default: `Filebinder.S3.urlPrefix`. |
+| `S3` (or `s3`) | Return the URL of the file on S3 (see below) instead of the local file. |
+| `url_prefix` | With `S3`, the prefix of the key. Default: the `urlPrefix` of the field, or `Filebinder.S3.urlPrefix`. |
 
 The other options are passed to `HtmlHelper::image()`, `link()` or `url()`.
+
+### URLs of the Files
+
+The URL depends on where the file is:
+
+| File | URL |
+| --- | --- |
+| Local file under the webroot | Its path under the webroot, e.g. `/files/Post/1/image/photo.jpg`. Anyone can open it. |
+| Local file outside the webroot, or uploaded file of a confirmation page (in `tmpPath`) | A URL of the `loader` action of the plugin, signed with the secret of the session, that expires after `Filebinder.expire`. |
+| File on S3 (`S3` option) with a public ACL (`public-read`, `public-read-write`) | The URL of the object, as the [S3 client](#s3-client) builds it with its region or endpoint, e.g. `https://<bucket>.s3.<region>.amazonaws.com/<key>`. |
+| File on S3 (`S3` option) with another ACL (e.g. `private`) | A presigned URL of the object, which expires after `Filebinder.expire`. |
+
+The bucket, the ACL, the key prefix and the region of a file on S3 are those of its field in
+`$bindFields` of the model, or of `Filebinder.S3`. The `loader` action and its secret are not used
+for the files on S3.
+
+To keep the files on S3 private, set the `acl` of the field (or `Filebinder.S3.acl`) to `private`.
+The helper then outputs presigned URLs, which are short-lived, and S3 checks their signature; the
+files are not sent through the application.
+
+### How the Loader Protects the Files
+
+The `loader` action checks the signature (the `key` parameter) and the expiration time of the URL.
+It does not check whether the user may see the record. The signature stands in for that check: the
+application decides which files a user may see by rendering their URLs with the Label helper, after
+its own authorization in the controller or the view. The URL is signed with the secret of the
+session and an expiration time, so only the URLs that the application rendered for this session
+work, and changing the model, the ID, the field or the file name of a URL gives a 404.
+
+- Do the authorization before you render the link.
+- A signed URL works for anyone who holds it, in that session, until it expires
+  (`Filebinder.expire`, one minute by default, e.g. `'+10 minutes'`).
+- The secret is a random value created for each session by the Ring component or the Label helper.
+  When `Filebinder.secret` is set, the secret is the same for every session, and a URL then works
+  in other sessions too until it expires; leave it unset for a secret per session. Without a
+  secret in the session, the loader answers 404.
+- `Filebinder.S3.secret` is a different setting: the (deprecated) secret access key of AWS.
 
 ## Ring Component
 
@@ -430,6 +461,7 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 | `saveAs(string $bucket, string $key, string $file): void` | Downloads an object to a local file. |
 | `delete(string $bucket, string $key): void` | Deletes an object. |
 | `url(string $bucket, string $key): string` | URL of an object (not signed), as the client builds it. |
+| `presignedUrl(string $bucket, string $key, DateTimeImmutable $expires): string` | Presigned URL to download an object, which expires at `$expires`. |
 
 `FilebinderS3StorageFactory::create(array $args = [])` creates the storage of the configured client
 with client options (`region`, `credentials`, ...), and `FilebinderS3StorageFactory::client()`
@@ -471,7 +503,9 @@ Changes in behavior:
 - The S3 URLs of the Label helper (`S3` option) are built by the S3 client: they use `https` and the
   region or the endpoint of the configuration (e.g. `https://<bucket>.s3.<region>.amazonaws.com/...`
   instead of `http://<bucket>.s3.amazonaws.com/...`), and the `ssl` option is no longer used. They
-  need an S3 client plugin, and are `null` without `Filebinder.S3.bucket`.
+  need an S3 client plugin, and are `null` without a bucket.
+- The S3 URLs of the Label helper use the bucket, `urlPrefix` and region of the field, and are
+  presigned when the ACL of the field (or `Filebinder.S3.acl`) is not public, e.g. `private`.
 - The key of the loader URLs signs the file name. Loader URLs created before the upgrade stop
   working if they have a file name, as the URLs of `LabelHelper` do; they are short-lived
   (`Filebinder.expire`, one minute by default), so reload the pages that show them.

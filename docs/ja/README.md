@@ -316,23 +316,57 @@ echo $this->Label->link($post['Post']['image'], ['title' => 'Download']);
 echo $this->Label->url($post['Post']['image']);
 ```
 
-`image()`、`link()`、`url()` は、ファイルがなければ `noFile` (なければ空文字列) を返します。webroot の
-下にあるファイルは、そのパスが URL になります。それ以外のファイルと、確認画面でのアップロード済みの
-ファイルは、プラグインの `loader` アクションが送ります。URL には署名があり、1 分で期限が切れます
-(`Filebinder.expire` で変更できます。例: `'+10 minutes'`)。署名の対象はモデル、ID、フィールド、
-ファイル名で、セッションに保存した秘密の値を使います。`Filebinder.secret` を設定した場合はその値、
-設定しない場合は Ring コンポーネントか Label ヘルパーがセッションごとに作るランダムな値です。
-セッションに秘密の値がなければ、loader は 404 を返します。
+`image()`、`link()`、`url()` は、ファイルがなければ `noFile` (なければ空文字列) を返します。
 
 | オプション | 説明 |
 | --- | --- |
 | `prefix` | ファイル名の接頭辞。たとえば、ファイルの隣に保存したサムネイルの `thumb_`。 |
 | `noFile` | ファイルがないときに返す値。 |
 | `title` | `link()` のリンクのテキスト。デフォルトはファイル名。 |
-| `S3` (または `s3`) | バケット `Filebinder.S3.bucket` のファイル `<urlPrefix><model>/<model_id>/<field_name>/<file_name>` の URL を返します。URL は [S3 クライアント](#s3-client) がリージョンやエンドポイントに合わせて作ります (例: `https://<bucket>.s3.<region>.amazonaws.com/<key>`)。 |
-| `url_prefix` | `S3` と一緒に指定するキーの接頭辞。デフォルトは `Filebinder.S3.urlPrefix`。 |
+| `S3` (または `s3`) | ローカルのファイルではなく、S3 のファイルの URL を返します (下記を参照)。 |
+| `url_prefix` | `S3` と一緒に指定するキーの接頭辞。デフォルトはフィールドの `urlPrefix`、なければ `Filebinder.S3.urlPrefix`。 |
 
 ほかのオプションは `HtmlHelper::image()`、`link()`、`url()` に渡します。
+
+<a id="urls-of-the-files"></a>
+
+### ファイルの URL
+
+URL はファイルの場所で決まります。
+
+| ファイル | URL |
+| --- | --- |
+| webroot の下のローカルのファイル | webroot の下のパス (例: `/files/Post/1/image/photo.jpg`)。誰でも開けます。 |
+| webroot の外のローカルのファイル、確認画面でアップロードしたファイル (`tmpPath`) | プラグインの `loader` アクションの URL。セッションの秘密の値で署名され、`Filebinder.expire` で期限が切れます。 |
+| S3 のファイル (`S3` オプション) で、公開の ACL (`public-read`、`public-read-write`) | [S3 クライアント](#s3-client) がリージョンやエンドポイントに合わせて作るオブジェクトの URL (例: `https://<bucket>.s3.<region>.amazonaws.com/<key>`)。 |
+| S3 のファイル (`S3` オプション) で、それ以外の ACL (例: `private`) | オブジェクトの署名付き URL。`Filebinder.expire` で期限が切れます。 |
+
+S3 のファイルのバケット、ACL、キーの接頭辞、リージョンは、モデルの `$bindFields` にあるそのフィールドの
+設定か、`Filebinder.S3` の設定です。S3 のファイルには `loader` アクションも秘密の値も使いません。
+
+S3 のファイルを非公開にするには、フィールドの `acl` (または `Filebinder.S3.acl`) を `private` にします。
+ヘルパーは有効期限の短い署名付き URL を出力し、署名は S3 が確認します。ファイルはアプリケーションを
+通りません。
+
+<a id="how-the-loader-protects-the-files"></a>
+
+### loader によるファイルの保護
+
+`loader` アクションが確認するのは、URL の署名 (`key` パラメータ) と有効期限です。ユーザーがその
+レコードを見てよいかどうかは確認しません。署名がその確認の代わりになります。どのファイルをユーザーに
+見せるかは、アプリケーションがコントローラーやビューで自分の認可を行ったうえで、Label ヘルパーで URL を
+出力することで決めます。URL はセッションの秘密の値と有効期限で署名されるので、アプリケーションがこの
+セッションのために出力した URL だけが使えます。URL のモデル、ID、フィールド、ファイル名を変えると
+404 になります。
+
+- 認可は、リンクを出力する前に行ってください。
+- 署名付きの URL は、そのセッションで、期限が切れるまで、URL を持っている人なら誰でも使えます
+  (`Filebinder.expire`、デフォルトは 1 分。例: `'+10 minutes'`)。
+- 秘密の値は、Ring コンポーネントか Label ヘルパーがセッションごとに作るランダムな値です。
+  `Filebinder.secret` を設定すると、すべてのセッションで同じ値になり、URL は期限が切れるまでほかの
+  セッションでも使えます。セッションごとの秘密の値にするには、設定しないでください。セッションに秘密の
+  値がなければ、loader は 404 を返します。
+- `Filebinder.S3.secret` は別の設定で、AWS のシークレットアクセスキー (非推奨) です。
 
 <a id="ring-component"></a>
 
@@ -457,6 +491,7 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 | `saveAs(string $bucket, string $key, string $file): void` | オブジェクトをローカルのファイルにダウンロードします。 |
 | `delete(string $bucket, string $key): void` | オブジェクトを削除します。 |
 | `url(string $bucket, string $key): string` | クライアントが組み立てたオブジェクトの URL (署名なし)。 |
+| `presignedUrl(string $bucket, string $key, DateTimeImmutable $expires): string` | オブジェクトをダウンロードする署名付き URL。`$expires` で期限が切れます。 |
 
 `FilebinderS3StorageFactory::create(array $args = [])` は、設定したクライアントのストレージを
 クライアントのオプション (`region`、`credentials` など) で作ります。`FilebinderS3StorageFactory::client()`
@@ -501,7 +536,9 @@ $this->set('imageUrl', $storage->url('my-bucket', 'files/Post/1/image/photo.jpg'
 - Label ヘルパーの S3 の URL (`S3` オプション) は S3 クライアントが作ります。`https` で、設定の
   リージョンやエンドポイントを使います (`http://<bucket>.s3.amazonaws.com/...` ではなく、たとえば
   `https://<bucket>.s3.<region>.amazonaws.com/...`)。`ssl` オプションは使わなくなりました。S3 クライアントの
-  プラグインが必要で、`Filebinder.S3.bucket` がなければ `null` を返します。
+  プラグインが必要で、バケットがなければ `null` を返します。
+- Label ヘルパーの S3 の URL は、フィールドのバケット、`urlPrefix`、リージョンを使います。フィールドの ACL
+  (または `Filebinder.S3.acl`) が公開でない場合 (例: `private`) は、署名付き URL になります。
 - loader の URL の署名にファイル名を含めます。アップグレード前に作られた、ファイル名のある loader の
   URL (`LabelHelper` の URL はファイル名を含みます) は使えなくなります。URL の有効期限は短い
   (`Filebinder.expire`、デフォルトは 1 分) ので、その URL を表示しているページは再読み込みしてください。

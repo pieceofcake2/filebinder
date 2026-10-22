@@ -8,6 +8,16 @@ class LabelHelperTest extends CakeTestCase
 {
     use MockS3Trait;
 
+    /**
+     * Fixtures
+     *
+     * @var array
+     */
+    public $fixtures = [
+        'plugin.filebinder.attachment',
+        'plugin.filebinder.filebinder_post',
+    ];
+
     protected View $View;
 
     protected LabelHelper $Label;
@@ -192,5 +202,77 @@ class LabelHelperTest extends CakeTestCase
         $file = ['model' => 'FilebinderPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png'];
 
         $this->assertSame('https://storage.example.com/my-bucket/FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
+    }
+
+    /**
+     * A file on S3 with a non-public ACL gets a presigned URL that expires as the loader URLs.
+     *
+     * @dataProvider s3Clients
+     */
+    public function testMakeS3UrlPresigned(string $client): void
+    {
+        $this->mockAws();
+        $this->mockAsyncAws();
+        Configure::write('Filebinder.S3', ['client' => $client, 'bucket' => 'my-bucket', 'acl' => 'private', 'urlPrefix' => 'files/']);
+        $file = ['model' => 'FilebinderPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png'];
+
+        $url = $this->Label->_makeSrc($file, ['S3' => true]);
+        $this->assertStringStartsWith('https://my-bucket.s3.ap-northeast-1.amazonaws.com/files/FilebinderPost/1/logo/logo.png?', $url);
+        $query = $this->_query($url);
+        $this->assertArrayHasKey('X-Amz-Signature', $query);
+        $this->assertEqualsWithDelta(60, (int)$query['X-Amz-Expires'], 5);
+
+        Configure::write('Filebinder.expire', '+10 minutes');
+        $this->assertEqualsWithDelta(600, (int)$this->_query($this->Label->_makeSrc($file, ['S3' => true]))['X-Amz-Expires'], 5);
+
+        foreach (['authenticated-read', 'bucket-owner-read', 'bucket-owner-full-control', 'aws-exec-read'] as $acl) {
+            Configure::write('Filebinder.S3.acl', $acl);
+            $this->assertArrayHasKey('X-Amz-Signature', $this->_query($this->Label->_makeSrc($file, ['S3' => true])), $acl);
+        }
+        foreach (['public-read', 'public-read-write'] as $acl) {
+            Configure::write('Filebinder.S3.acl', $acl);
+            $this->assertSame('https://my-bucket.s3.ap-northeast-1.amazonaws.com/files/FilebinderPost/1/logo/logo.png', $this->Label->_makeSrc($file, ['S3' => true]), $acl);
+        }
+    }
+
+    /**
+     * The bucket, the ACL, the key prefix and the region of the bound field take precedence over Filebinder.S3.
+     *
+     * @dataProvider s3Clients
+     */
+    public function testMakeS3UrlFieldSettings(string $client): void
+    {
+        $this->mockAws();
+        $this->mockAsyncAws();
+        Configure::write('Filebinder.S3', ['client' => $client, 'bucket' => 'my-bucket', 'acl' => 'public-read']);
+        ClassRegistry::init('FilebinderPost')->bindFields = [
+            ['field' => 'logo', 'bucket' => 'field-bucket', 'acl' => 'private', 'urlPrefix' => 'field/', 'region' => 'us-west-2'],
+            ['field' => 'image'],
+        ];
+        $file = ['model' => 'FilebinderPost', 'model_id' => '1', 'field_name' => 'logo', 'file_name' => 'logo.png'];
+
+        $url = $this->Label->_makeSrc($file, ['S3' => true]);
+        $this->assertStringStartsWith('https://field-bucket.s3.us-west-2.amazonaws.com/field/FilebinderPost/1/logo/logo.png?', $url);
+        $this->assertArrayHasKey('X-Amz-Signature', $this->_query($url));
+
+        $file['field_name'] = 'image';
+        $this->assertSame('https://my-bucket.s3.ap-northeast-1.amazonaws.com/FilebinderPost/1/image/logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
+
+        // A model name without a model class uses Filebinder.S3
+        $file['model'] = 'NoSuchModel';
+        $this->assertSame('https://my-bucket.s3.ap-northeast-1.amazonaws.com/NoSuchModel/1/image/logo.png', $this->Label->_makeSrc($file, ['S3' => true]));
+    }
+
+    /**
+     * Returns the query parameters of a URL.
+     *
+     * @param string $url URL.
+     * @return array
+     */
+    protected function _query(string $url): array
+    {
+        parse_str((string)parse_url($url, PHP_URL_QUERY), $query);
+
+        return $query;
     }
 }

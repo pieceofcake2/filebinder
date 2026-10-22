@@ -557,13 +557,7 @@ class BindableBehavior extends ModelBehavior
      */
     protected function _s3Settings(array $field)
     {
-        $acl = !empty($field['acl']) ? $field['acl'] : Configure::read('Filebinder.S3.acl');
-
-        return [
-            'bucket' => !empty($field['bucket']) ? $field['bucket'] : Configure::read('Filebinder.S3.bucket'),
-            'acl' => empty($acl) ? 'public-read' : $acl,
-            'urlPrefix' => !empty($field['urlPrefix']) ? $field['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix'),
-        ];
+        return FilebinderS3StorageFactory::fieldSettings($field);
     }
 
     /**

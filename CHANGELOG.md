@@ -35,6 +35,11 @@ First release of `pieceofcake2/filebinder`, a maintained fork of
   `https://<bucket>.s3.<region>.amazonaws.com/...` instead of `http://<bucket>.s3.amazonaws.com/...`).
   `urlPrefix` and `url_prefix` work as before; the `ssl` option is no longer used. Without
   `Filebinder.S3.bucket`, the URL is `null`
+- For a file on S3 whose ACL is not public (anything but `public-read` and `public-read-write`, e.g.
+  `private`), `LabelHelper` outputs a presigned URL that expires after `Filebinder.expire` (one
+  minute by default). The S3 URLs use the bucket, ACL, `urlPrefix` and region of the field in
+  `$bindFields`, then `Filebinder.S3`; they used only `Filebinder.S3.bucket` and
+  `Filebinder.S3.urlPrefix`. New `presignedUrl()` in `FilebinderS3StorageInterface`
 - New `s3Storage()` behavior method (`$this->Post->s3Storage('image')`) returns the S3 storage of a
   field, e.g. to get the URL of a file with `url()`
 - With the AsyncAws client, the `Content-Type` of the uploaded files is detected from their

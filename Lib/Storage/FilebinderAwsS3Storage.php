@@ -94,4 +94,14 @@ class FilebinderAwsS3Storage implements FilebinderS3StorageInterface
     {
         return $this->client->getObjectUrl($bucket, $key);
     }
+
+    /**
+     * @inheritDoc
+     */
+    public function presignedUrl(string $bucket, string $key, DateTimeImmutable $expires): string
+    {
+        $command = $this->client->getCommand('GetObject', ['Bucket' => $bucket, 'Key' => $key]);
+
+        return (string)$this->client->createPresignedRequest($command, $expires)->getUri();
+    }
 }

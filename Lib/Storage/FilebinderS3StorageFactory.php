@@ -71,6 +71,31 @@ class FilebinderS3StorageFactory
     }
 
     /**
+     * ACLs of the objects that anyone can read
+     *
+     * @var array<string>
+     */
+    public const PUBLIC_ACLS = ['public-read', 'public-read-write'];
+
+    /**
+     * Returns the S3 settings of a bound field: `bucket`, `acl` (default `public-read`) and `urlPrefix`, from the
+     * field or `Filebinder.S3`.
+     *
+     * @param array $field Settings of the bound field.
+     * @return array{bucket: mixed, acl: string, urlPrefix: mixed}
+     */
+    public static function fieldSettings(array $field = []): array
+    {
+        $acl = !empty($field['acl']) ? $field['acl'] : Configure::read('Filebinder.S3.acl');
+
+        return [
+            'bucket' => !empty($field['bucket']) ? $field['bucket'] : Configure::read('Filebinder.S3.bucket'),
+            'acl' => empty($acl) ? 'public-read' : $acl,
+            'urlPrefix' => !empty($field['urlPrefix']) ? $field['urlPrefix'] : Configure::read('Filebinder.S3.urlPrefix'),
+        ];
+    }
+
+    /**
      * Returns the options of the S3 client of a bound field: the deprecated `Filebinder.S3.key` and
      * `Filebinder.S3.secret` as `credentials`, and the `region` of the field or the deprecated `Filebinder.S3.region`.
      * They take precedence over the configuration of the plugin.
