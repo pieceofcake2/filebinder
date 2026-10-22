@@ -285,6 +285,25 @@ class BindableBehaviorS3Test extends CakeTestCase
     }
 
     /**
+     * A file restored from S3 gets the fileMode of the settings, as a file restored from the database.
+     */
+    public function testRestoreS3FileMode(): void
+    {
+        Configure::write('Filebinder.S3.client', 'AsyncAws');
+        $this->FilebinderPost->setSettings(['storage' => BindableBehavior::STORAGE_S3, 'fileMode' => 0640]);
+        $result = $this->_saveLogo();
+        $filePath = $result['FilebinderPost']['logo']['file_path'];
+        unlink($filePath);
+
+        $this->asyncAwsResponses[] = new MockResponse('restored');
+        $this->FilebinderPost->find('first', ['conditions' => ['FilebinderPost.id' => $result['FilebinderPost']['id']]]);
+
+        $this->assertStringEqualsFile($filePath, 'restored');
+        clearstatcache();
+        $this->assertSame(0640, fileperms($filePath) & 0777);
+    }
+
+    /**
      * The deprecated Filebinder.S3.key, secret and region also configure the AsyncAws client.
      */
     public function testAsyncAwsDeprecatedCredentials(): void

@@ -1064,6 +1064,9 @@ class BindableBehavior extends ModelBehavior
                                     $s3['urlPrefix'] . $model->transferTo(array_diff_key($bind, Set::normalize(['file_object']))),
                                     $filePath,
                                 );
+                                if (is_file($filePath)) {
+                                    chmod($filePath, $this->settings[$model->alias]['fileMode']);
+                                }
                             } finally {
                                 umask($currentMask);
                             }
